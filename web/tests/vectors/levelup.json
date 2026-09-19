@@ -1,0 +1,93 @@
+{
+ "source": "player.py PlayerData.add_exp (ch\u1ea1y tr\u00ean source th\u1eadt)",
+ "final_2m": {
+  "level": 64,
+  "exp": 7748,
+  "exp_to_next_level": 101231
+ },
+ "final_500": {
+  "level": 5,
+  "exp": 2,
+  "exp_to_next_level": 174
+ },
+ "checkpoints": [
+  {
+   "xp": 0,
+   "level": 1,
+   "exp": 0,
+   "exp_to_next_level": 100
+  },
+  {
+   "xp": 100,
+   "level": 2,
+   "exp": 0,
+   "exp_to_next_level": 114
+  },
+  {
+   "xp": 500,
+   "level": 5,
+   "exp": 2,
+   "exp_to_next_level": 174
+  },
+  {
+   "xp": 1000,
+   "level": 7,
+   "exp": 127,
+   "exp_to_next_level": 231
+  },
+  {
+   "xp": 1500,
+   "level": 9,
+   "exp": 130,
+   "exp_to_next_level": 305
+  },
+  {
+   "xp": 2000,
+   "level": 10,
+   "exp": 325,
+   "exp_to_next_level": 351
+  },
+  {
+   "xp": 5000,
+   "level": 16,
+   "exp": 248,
+   "exp_to_next_level": 813
+  },
+  {
+   "xp": 10000,
+   "level": 20,
+   "exp": 1187,
+   "exp_to_next_level": 1423
+  },
+  {
+   "xp": 50000,
+   "level": 31,
+   "exp": 6539,
+   "exp_to_next_level": 6621
+  },
+  {
+   "xp": 100000,
+   "level": 36,
+   "exp": 11899,
+   "exp_to_next_level": 13317
+  },
+  {
+   "xp": 500000,
+   "level": 48,
+   "exp": 25674,
+   "exp_to_next_level": 71252
+  },
+  {
+   "xp": 1000000,
+   "level": 53,
+   "exp": 88289,
+   "exp_to_next_level": 95731
+  },
+  {
+   "xp": 2000000,
+   "level": 64,
+   "exp": 7748,
+   "exp_to_next_level": 101231
+  }
+ ]
+}

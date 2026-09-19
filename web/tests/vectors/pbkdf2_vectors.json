@@ -1,0 +1,25 @@
+{
+ "source": "game_init.py hash_password/verify_password (format pbkdf2$sha256$100000$salt$hex)",
+ "vectors": [
+  {
+   "password": "demo123",
+   "salt": "00000000000000000000000000000000",
+   "stored": "pbkdf2$sha256$100000$00000000000000000000000000000000$ee02b361994bc41199737eb9fc34a9db472fe1a926e8604607c4a93c2e2258de"
+  },
+  {
+   "password": "demo123",
+   "salt": "abcdef0123456789abcdef0123456789",
+   "stored": "pbkdf2$sha256$100000$abcdef0123456789abcdef0123456789$debbb919d1d2d31c20ea9a3b9a2ab711162ee7b4c9c79b26d50e381273a92641"
+  },
+  {
+   "password": "alice12345",
+   "salt": "1234567890abcdef1234567890abcdef",
+   "stored": "pbkdf2$sha256$100000$1234567890abcdef1234567890abcdef$383eaa9dc218eacca62e6dee7d5e657902fcaa3713a7aaab585ba0ec59f293f4"
+  },
+  {
+   "password": "Trư Việt NaM!@# 123",
+   "salt": "ffffffffffffffffffffffffffffffff",
+   "stored": "pbkdf2$sha256$100000$ffffffffffffffffffffffffffffffff$95e7ae5f52309922b3bac91d2bda9fbe1c8de45e5c59d02b7d8ee5c60d82deaa"
+  }
+ ]
+}

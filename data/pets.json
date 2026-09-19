@@ -1,0 +1,188 @@
+{
+  "clover": {
+    "name": "Cỏ May Mắn",
+    "price": 0,
+    "stages": [
+      {
+        "name": "Cỏ Non",
+        "icon": "🌱",
+        "xp_required": 0
+      },
+      {
+        "name": "Cỏ Ba Lá",
+        "icon": "🍀",
+        "xp_required": 500
+      },
+      {
+        "name": "Cỏ Vàng",
+        "icon": "✨",
+        "xp_required": 1500
+      },
+      {
+        "name": "Cỏ Thần",
+        "icon": "🌟",
+        "xp_required": 3000
+      },
+      {
+        "name": "Cỏ Huyền Thoại",
+        "icon": "👑",
+        "xp_required": 5000
+      }
+    ]
+  },
+  "star": {
+    "name": "Ngôi Sao Tri Thức",
+    "price": 250,
+    "stages": [
+      {
+        "name": "Sao Nhỏ",
+        "icon": "⭐",
+        "xp_required": 0
+      },
+      {
+        "name": "Sao Sáng",
+        "icon": "🌟",
+        "xp_required": 500
+      },
+      {
+        "name": "Sao Chổi",
+        "icon": "☄️",
+        "xp_required": 1500
+      },
+      {
+        "name": "Thiên Hà",
+        "icon": "🌌",
+        "xp_required": 3000
+      },
+      {
+        "name": "Siêu Tân Tinh",
+        "icon": "💥",
+        "xp_required": 5000
+      }
+    ]
+  },
+  "book": {
+    "name": "Sách Trí Tuệ",
+    "price": 400,
+    "stages": [
+      {
+        "name": "Sách Nhỏ",
+        "icon": "📕",
+        "xp_required": 0
+      },
+      {
+        "name": "Sách Xanh",
+        "icon": "📗",
+        "xp_required": 500
+      },
+      {
+        "name": "Sách Vàng",
+        "icon": "📙",
+        "xp_required": 1500
+      },
+      {
+        "name": "Bách Khoa",
+        "icon": "📚",
+        "xp_required": 3000
+      },
+      {
+        "name": "Thư Viện Sống",
+        "icon": "🏛️",
+        "xp_required": 5000
+      }
+    ]
+  },
+  "math": {
+    "name": "Nhân Tố Toán",
+    "price": 550,
+    "stages": [
+      {
+        "name": "Số 1",
+        "icon": "1️⃣",
+        "xp_required": 0
+      },
+      {
+        "name": "Pi",
+        "icon": "🥧",
+        "xp_required": 500
+      },
+      {
+        "name": "Infinity",
+        "icon": "♾️",
+        "xp_required": 1500
+      },
+      {
+        "name": "Chân Lý",
+        "icon": "🎓",
+        "xp_required": 3000
+      },
+      {
+        "name": "Siêu Trí Tuệ",
+        "icon": "🧠",
+        "xp_required": 5000
+      }
+    ]
+  },
+  "rocket": {
+    "name": "Tên Lửa Khám Phá",
+    "price": 800,
+    "stages": [
+      {
+        "name": "Mồi Lửa",
+        "icon": "🧨",
+        "xp_required": 0
+      },
+      {
+        "name": "Phóng",
+        "icon": "🚀",
+        "xp_required": 600
+      },
+      {
+        "name": "Quỹ Đạo",
+        "icon": "🛰️",
+        "xp_required": 1700
+      },
+      {
+        "name": "Liên Tinh",
+        "icon": "🪐",
+        "xp_required": 3200
+      },
+      {
+        "name": "Du Hành Vũ Trụ",
+        "icon": "🌠",
+        "xp_required": 5200
+      }
+    ]
+  },
+  "dragon": {
+    "name": "Rồng Tri Thức",
+    "price": 1100,
+    "stages": [
+      {
+        "name": "Trứng Rồng",
+        "icon": "🥚",
+        "xp_required": 0
+      },
+      {
+        "name": "Rồng Con",
+        "icon": "🐉",
+        "xp_required": 700
+      },
+      {
+        "name": "Rồng Lửa",
+        "icon": "🔥",
+        "xp_required": 1900
+      },
+      {
+        "name": "Rồng Cổ Đại",
+        "icon": "⚜️",
+        "xp_required": 3500
+      },
+      {
+        "name": "Rồng Vương",
+        "icon": "👑",
+        "xp_required": 5600
+      }
+    ]
+  }
+}

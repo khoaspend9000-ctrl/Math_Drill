@@ -1,0 +1,10 @@
+# M6-B dev dump/log files — not for commit
+web/tests/helpers/_*.log
+web/tests/helpers/_mt.err
+web/tests/helpers/_mt.out
+web/tests/helpers/__pycache__/
+_git_commit_*.py
+node_modules/
+.env
+server/data/*.json
+*.log

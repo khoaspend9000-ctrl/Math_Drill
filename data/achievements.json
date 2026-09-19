@@ -1,0 +1,56 @@
+{
+  "streak_5": {
+    "name": "Chuỗi 5!",
+    "desc": "Trả lời đúng 5 câu liên tiếp",
+    "icon": "🔥",
+    "xp": 50
+  },
+  "streak_10": {
+    "name": "Chuỗi 10!",
+    "desc": "Trả lời đúng 10 câu liên tiếp",
+    "icon": "💎",
+    "xp": 150
+  },
+  "speed_demon": {
+    "name": "Nhanh như chớp",
+    "desc": "Trả lời đúng trong 2 giây",
+    "icon": "⚡",
+    "xp": 30
+  },
+  "perfect_lesson": {
+    "name": "Hoàn hảo!",
+    "desc": "Không sai câu nào trong bài học",
+    "icon": "⭐",
+    "xp": 200
+  },
+  "time_attack_50": {
+    "name": "Tốc độ 50",
+    "desc": "Đạt 50+ điểm trong Time Attack",
+    "icon": "⏱️",
+    "xp": 100
+  },
+  "time_attack_100": {
+    "name": "Tốc độ 100",
+    "desc": "Đạt 100+ điểm trong Time Attack",
+    "icon": "🏆",
+    "xp": 250
+  },
+  "combo_x4": {
+    "name": "Combo x4!",
+    "desc": "Đạt combo x4 trong Time Attack",
+    "icon": "🎯",
+    "xp": 80
+  },
+  "first_win": {
+    "name": "Chiến thắng đầu tiên",
+    "desc": "Hoàn thành bài học đầu tiên",
+    "icon": "🎉",
+    "xp": 30
+  },
+  "math_master": {
+    "name": "Bậc thầy toán",
+    "desc": "Trả lời đúng 100 câu tổng cộng",
+    "icon": "🧠",
+    "xp": 300
+  }
+}

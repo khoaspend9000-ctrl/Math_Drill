@@ -1,0 +1,56 @@
+{
+    "1": [
+        {
+            "title": "Phép cộng trong phạm vi 10",
+            "content": "Khi cộng hai số, ta gộp lại số lượng của cả hai... Ví dụ: 1 + 1 = 2"
+        },
+        {
+            "title": "Phép trừ trong phạm vi 10",
+            "content": "Phép trừ là bớt đi... Ví dụ: 3 - 1 = 2"
+        },
+        {
+            "title": "Hình vuông, hình tròn",
+            "content": "Hình vuông có 4 cạnh bằng nhau. Hình tròn không có góc cạnh."
+        }
+    ],
+    "2": [
+        {
+            "title": "Phép nhân bảng 2",
+            "content": "2 x 1 = 2\n2 x 2 = 4\n2 x 3 = 6..."
+        },
+        {
+            "title": "Đơn vị đo lường: cm, dm",
+            "content": "1 dm = 10 cm."
+        }
+    ],
+    "3": [
+        {
+            "title": "Phép chia hết và phép chia có dư",
+            "content": "Phép chia hết là khi số dư bằng 0..."
+        },
+        {
+            "title": "Diện tích hình chữ nhật",
+            "content": "S = dài x rộng"
+        }
+    ],
+    "4": [
+        {
+            "title": "Phân số",
+            "content": "Phân số gồm tử số và mẫu số..."
+        },
+        {
+            "title": "Trung bình cộng",
+            "content": "Muốn tìm trung bình cộng của nhiều số..."
+        }
+    ],
+    "5": [
+        {
+            "title": "Số thập phân",
+            "content": "Số thập phân gồm phần nguyên và phần thập phân..."
+        },
+        {
+            "title": "Vận tốc, quãng đường, thời gian",
+            "content": "v = s : t"
+        }
+    ]
+}

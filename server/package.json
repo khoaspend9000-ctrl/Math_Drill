@@ -1,0 +1,12 @@
+{
+  "name": "mathdrill-server",
+  "version": "1.0.0",
+  "description": "MathDrill Web M10-C Backend Auth API",
+  "type": "commonjs",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node tests/auth.test.js"
+  },
+  "dependencies": {}
+}

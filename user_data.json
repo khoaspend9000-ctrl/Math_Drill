@@ -1,0 +1,656 @@
+{
+    "admin": {
+        "password": "adminpass",
+        "level": 1,
+        "exp": 0,
+        "history": [],
+        "daily_streak": 0,
+        "last_login": "2026-02-05",
+        "is_admin": false,
+        "data": {
+            "grade": 2,
+            "xp": 9800,
+            "level": 9999,
+            "history": [
+                {
+                    "date": "08/07/2026 15:50",
+                    "lesson": "B\u00e0i 8. B\u1ea3ng c\u1ed9ng (qua 10)",
+                    "score": 10
+                },
+                {
+                    "date": "08/07/2026 15:50",
+                    "lesson": "B\u00e0i 8. B\u1ea3ng c\u1ed9ng (qua 10)",
+                    "score": 720
+                },
+                {
+                    "date": "20/06/2026 20:46",
+                    "lesson": "B\u00e0i 1. \u00d4n t\u1eadp c\u00e1c s\u1ed1 \u0111\u1ebfn 100",
+                    "score": 860
+                },
+                {
+                    "date": "15/06/2026 22:25",
+                    "lesson": "B\u00e0i 1. \u00d4n t\u1eadp c\u00e1c s\u1ed1 \u0111\u1ebfn 100",
+                    "score": 620
+                },
+                {
+                    "date": "15/06/2026 16:20",
+                    "lesson": "Time Attack",
+                    "score": 850
+                },
+                {
+                    "date": "15/06/2026 07:47",
+                    "lesson": "Time Attack",
+                    "score": 1790
+                },
+                {
+                    "date": "15/06/2026 07:43",
+                    "lesson": "B\u00e0i 1. \u00d4n t\u1eadp c\u00e1c s\u1ed1 \u0111\u1ebfn 100",
+                    "score": 860
+                },
+                {
+                    "date": "11/06/2026 08:37",
+                    "lesson": "Time Attack",
+                    "score": 420
+                },
+                {
+                    "date": "02/05/2026 08:39",
+                    "lesson": "B\u00e0i 75. \u00d4n t\u1eadp chung",
+                    "score": 620
+                },
+                {
+                    "date": "23/04/2026 12:10",
+                    "lesson": "B\u00e0i 2. Tia s\u1ed1. S\u1ed1 li\u1ec1n tr\u01b0\u1edbc, s\u1ed1 li\u1ec1n sau",
+                    "score": 410
+                },
+                {
+                    "date": "21/04/2026 22:34",
+                    "lesson": "B\u00e0i 1. \u00d4n t\u1eadp c\u00e1c s\u1ed1 \u0111\u1ebfn 100",
+                    "score": 20
+                },
+                {
+                    "date": "21/04/2026 22:31",
+                    "lesson": "B\u00e0i 1. \u00d4n t\u1eadp c\u00e1c s\u1ed1 \u0111\u1ebfn 100",
+                    "score": 270
+                },
+                {
+                    "date": "21/04/2026 09:22",
+                    "lesson": "Time Attack",
+                    "score": 660
+                },
+                {
+                    "date": "10/04/2026 22:06",
+                    "lesson": "B\u00e0i 1. C\u00e1c s\u1ed1 0, 1, 2, 3, 4, 5",
+                    "score": 205
+                },
+                {
+                    "date": "28/03/2026 13:29",
+                    "lesson": "Time Attack",
+                    "score": 320
+                },
+                {
+                    "date": "28/03/2026 13:12",
+                    "lesson": "B\u00e0i 1. C\u00e1c s\u1ed1 0, 1, 2, 3, 4, 5",
+                    "score": 140
+                },
+                {
+                    "date": "25/03/2026 16:58",
+                    "lesson": "B\u00e0i 1. C\u00e1c s\u1ed1 0, 1, 2, 3, 4, 5",
+                    "score": 120
+                },
+                {
+                    "date": "19/03/2026 15:59",
+                    "lesson": "B\u00e0i 2. C\u00e1c s\u1ed1 6, 7, 8, 9, 10",
+                    "score": 10
+                },
+                {
+                    "date": "19/03/2026 15:59",
+                    "lesson": "B\u00e0i 1. C\u00e1c s\u1ed1 0, 1, 2, 3, 4, 5",
+                    "score": 80
+                },
+                {
+                    "date": "19/03/2026 15:40",
+                    "lesson": "B\u00e0i 1. C\u00e1c s\u1ed1 0, 1, 2, 3, 4, 5",
+                    "score": 40
+                },
+                {
+                    "date": "19/03/2026 15:04",
+                    "lesson": "B\u00e0i 1. C\u00e1c s\u1ed1 0, 1, 2, 3, 4, 5",
+                    "score": 40
+                },
+                {
+                    "date": "16/03/2026 16:18",
+                    "lesson": "B\u00e0i 1. C\u00e1c s\u1ed1 0, 1, 2, 3, 4, 5",
+                    "score": 90
+                },
+                {
+                    "date": "16/03/2026 16:07",
+                    "lesson": "B\u00e0i 1. C\u00e1c s\u1ed1 0, 1, 2, 3, 4, 5",
+                    "score": 70
+                },
+                {
+                    "date": "16/03/2026 13:05",
+                    "lesson": "B\u00e0i 1. C\u00e1c s\u1ed1 0, 1, 2, 3, 4, 5",
+                    "score": 70
+                },
+                {
+                    "date": "15/03/2026 10:26",
+                    "lesson": "B\u00e0i 1. C\u00e1c s\u1ed1 0, 1, 2, 3, 4, 5",
+                    "score": 20
+                },
+                {
+                    "date": "15/03/2026 10:25",
+                    "lesson": "B\u00e0i 1. C\u00e1c s\u1ed1 0, 1, 2, 3, 4, 5",
+                    "score": 70
+                },
+                {
+                    "date": "15/03/2026 10:25",
+                    "lesson": "B\u00e0i 1. C\u00e1c s\u1ed1 0, 1, 2, 3, 4, 5",
+                    "score": 100
+                },
+                {
+                    "date": "15/03/2026 10:23",
+                    "lesson": "B\u00e0i 1. C\u00e1c s\u1ed1 0, 1, 2, 3, 4, 5",
+                    "score": 30
+                },
+                {
+                    "date": "15/03/2026 10:16",
+                    "lesson": "B\u00e0i 1. C\u00e1c s\u1ed1 0, 1, 2, 3, 4, 5",
+                    "score": 40
+                },
+                {
+                    "date": "15/03/2026 09:30",
+                    "lesson": "B\u00e0i 1. C\u00e1c s\u1ed1 0, 1, 2, 3, 4, 5",
+                    "score": 40
+                },
+                {
+                    "date": "15/03/2026 09:27",
+                    "lesson": "B\u00e0i 1. C\u00e1c s\u1ed1 0, 1, 2, 3, 4, 5",
+                    "score": 40
+                },
+                {
+                    "date": "15/03/2026 09:15",
+                    "lesson": "B\u00e0i 1. C\u00e1c s\u1ed1 0, 1, 2, 3, 4, 5",
+                    "score": 20
+                },
+                {
+                    "date": "15/03/2026 09:09",
+                    "lesson": "B\u00e0i 1. C\u00e1c s\u1ed1 0, 1, 2, 3, 4, 5",
+                    "score": 10
+                },
+                {
+                    "date": "15/03/2026 09:04",
+                    "lesson": "B\u00e0i 1. C\u00e1c s\u1ed1 0, 1, 2, 3, 4, 5",
+                    "score": 40
+                },
+                {
+                    "date": "15/03/2026 08:52",
+                    "lesson": "B\u00e0i 1. C\u00e1c s\u1ed1 0, 1, 2, 3, 4, 5",
+                    "score": 30
+                },
+                {
+                    "date": "14/03/2026 19:45",
+                    "lesson": "B\u00e0i 1. C\u00e1c s\u1ed1 0, 1, 2, 3, 4, 5",
+                    "score": 50
+                },
+                {
+                    "date": "14/03/2026 19:44",
+                    "lesson": "B\u00e0i 1. C\u00e1c s\u1ed1 0, 1, 2, 3, 4, 5",
+                    "score": 50
+                },
+                {
+                    "date": "14/03/2026 11:18",
+                    "lesson": "B\u00e0i 1. C\u00e1c s\u1ed1 0, 1, 2, 3, 4, 5",
+                    "score": 150
+                }
+            ],
+            "completed_lessons": [
+                "Time Attack",
+                "B\u00e0i 1. \u00d4n t\u1eadp c\u00e1c s\u1ed1 \u0111\u1ebfn 100",
+                "B\u00e0i 2. Tia s\u1ed1. S\u1ed1 li\u1ec1n tr\u01b0\u1edbc, s\u1ed1 li\u1ec1n sau",
+                "B\u00e0i 75. \u00d4n t\u1eadp chung",
+                "B\u00e0i 8. B\u1ea3ng c\u1ed9ng (qua 10)"
+            ],
+            "daily": {
+                "date": "2026-06-25",
+                "played": false
+            },
+            "achievements": [
+                "speed_demon",
+                "time_attack_50",
+                "time_attack_100"
+            ],
+            "daily_tasks": {
+                "date": "2026-07-10",
+                "tasks": [
+                    {
+                        "id": "correct_10",
+                        "desc": "Tra loi dung 10 cau",
+                        "target": 10,
+                        "progress": 0,
+                        "reward": 50,
+                        "claimed": false
+                    },
+                    {
+                        "id": "combo_5",
+                        "desc": "Dat combo 5",
+                        "target": 5,
+                        "progress": 0,
+                        "reward": 70,
+                        "claimed": false
+                    },
+                    {
+                        "id": "play_1",
+                        "desc": "Choi 1 tran",
+                        "target": 1,
+                        "progress": 0,
+                        "reward": 30,
+                        "claimed": false
+                    }
+                ]
+            },
+            "daily_streak": 1,
+            "last_claim": "2026-07-10",
+            "pet": {
+                "type": "dragon",
+                "stage": 0,
+                "name": "Tr\u1ee9ng R\u1ed3ng"
+            },
+            "collected_cards": [],
+            "avatar_path": "g:\\lam_game_2025\\avatars\\admin_1778233741.png",
+            "gold": 3990,
+            "unlocked_pets": [
+                "clover",
+                "dragon",
+                "rocket",
+                "math",
+                "book",
+                "star"
+            ],
+            "mastery_levels": {
+                "1_B\u00e0i 1. C\u00e1c s\u1ed1 0, 1, 2, 3, 4, 5": {
+                    "strength": 0.7,
+                    "ease_factor": 2.7,
+                    "interval": 5,
+                    "last_practiced": "19/04/2026 19:25"
+                },
+                "1_B\u00e0i 3. Nhi\u1ec1u h\u01a1n, \u00edt h\u01a1n, b\u1eb1ng nhau": {
+                    "strength": 0.39999999999999997,
+                    "ease_factor": 2.4,
+                    "interval": 1,
+                    "last_practiced": "20/04/2026 21:42"
+                },
+                "1_B\u00e0i 2. C\u00e1c s\u1ed1 6, 7, 8, 9, 10": {
+                    "strength": 0.6,
+                    "ease_factor": 2.6,
+                    "interval": 2,
+                    "last_practiced": "20/04/2026 21:37"
+                },
+                "2_B\u00e0i 1. \u00d4n t\u1eadp c\u00e1c s\u1ed1 \u0111\u1ebfn 100": {
+                    "strength": 1.0,
+                    "ease_factor": 3.0,
+                    "interval": 23070922450741174915782284561874944,
+                    "last_practiced": "20/06/2026 20:46"
+                },
+                "2_B\u00e0i 2. Tia s\u1ed1. S\u1ed1 li\u1ec1n tr\u01b0\u1edbc, s\u1ed1 li\u1ec1n sau": {
+                    "strength": 1.0,
+                    "ease_factor": 3.0,
+                    "interval": 3424842,
+                    "last_practiced": "23/04/2026 12:10"
+                },
+                "2_B\u00e0i 75. \u00d4n t\u1eadp chung": {
+                    "strength": 1.0,
+                    "ease_factor": 3.0,
+                    "interval": 21257640,
+                    "last_practiced": "02/05/2026 08:39"
+                },
+                "2_B\u00e0i 3. C\u00e1c th\u00e0nh ph\u1ea7n c\u1ee7a ph\u00e9p c\u1ed9ng, ph\u00e9p tr\u1eeb": {
+                    "strength": 0.8,
+                    "ease_factor": 2.8,
+                    "interval": 180,
+                    "last_practiced": "09/05/2026 20:54"
+                },
+                "2_B\u00e0i 8. B\u1ea3ng c\u1ed9ng (qua 10)": {
+                    "strength": 1.0,
+                    "ease_factor": 3.0,
+                    "interval": 682344,
+                    "last_practiced": "08/07/2026 15:50"
+                }
+            },
+            "recent_answers": [
+                true,
+                true,
+                true,
+                true,
+                true,
+                true,
+                true,
+                true,
+                true,
+                true
+            ],
+            "streak": 13,
+            "skill_progress": {
+                "addition_10_20": {
+                    "name": "C\u1ed9ng s\u1ed1 10-20",
+                    "completed_lessons": [
+                        1,
+                        2
+                    ],
+                    "progress": 100.0
+                },
+                "subtraction_20_100": {
+                    "name": "Tr\u1eeb s\u1ed1 20-100",
+                    "completed_lessons": [
+                        8
+                    ],
+                    "progress": 50.0
+                }
+            },
+            "max_streak": 34,
+            "energy": 100,
+            "fever_mode": true,
+            "flagged_topics": [
+                "2_B\u00e0i 3. C\u00e1c th\u00e0nh ph\u1ea7n c\u1ee7a ph\u00e9p c\u1ed9ng, ph\u00e9p tr\u1eeb"
+            ],
+            "skill_levels": {
+                "gold_boost_1": 1,
+                "time_extend": 1,
+                "time_slow": 1,
+                "xp_boost": 1,
+                "gold_passive": 1
+            },
+            "unlocked_skins": [
+                "pen_basic",
+                "board_wood",
+                "board_ocean",
+                "pen_magic",
+                "pen_golden",
+                "pen_laser",
+                "pen_neon",
+                "board_space",
+                "board_neon",
+                "board_candy"
+            ],
+            "equipped_board": "board_neon",
+            "play_time_seconds": 411,
+            "best_combo": 26,
+            "gacha_state": {
+                "pull_count": 11,
+                "total_pulls": 11,
+                "guaranteed_legendary": false,
+                "rare_pity": 0
+            },
+            "inventory": [
+                "La B\u00e0n Euler",
+                "Ghi Nh\u1edb Nhanh",
+                "Tr\u1eeb Ch\u1edbp Nho\u00e1ng",
+                "Chia C\u1eaft Gi\u00f3",
+                "\u0110\u1ed3ng H\u1ed3 C\u00e1t",
+                "C\u1ed9ng Th\u1ea7n T\u1ed1c",
+                "Nh\u00e2n V\u0169 B\u00e3o",
+                "B\u1ea3o H\u1ed9 Thales",
+                "B\u1ed9 Nh\u1edb Si\u00eau C\u1ea5p",
+                "T\u1eadp Trung Cao",
+                "Cung Th\u1ee7 Logic",
+                "Khi\u00ean Tri Th\u1ee9c",
+                "\u0110\u1ecbnh L\u00fd Pythago",
+                "Th\u1ea7n To\u00e1n Archimedes",
+                "R\u1ed3ng S\u1ed1 H\u1ecdc"
+            ],
+            "banner_pity": {
+                "archimedes": {
+                    "pull_count": 56,
+                    "total_pulls": 110,
+                    "rare_pity": 5,
+                    "guaranteed": false
+                },
+                "dragon": {
+                    "pull_count": 11,
+                    "total_pulls": 90,
+                    "rare_pity": 0,
+                    "guaranteed": false
+                },
+                "standard": {
+                    "pull_count": 10,
+                    "total_pulls": 10,
+                    "rare_pity": 5,
+                    "guaranteed": false
+                },
+                "phoenix": {
+                    "pull_count": 0,
+                    "total_pulls": 0,
+                    "rare_pity": 0,
+                    "guaranteed": false
+                },
+                "einstein": {
+                    "pull_count": 0,
+                    "total_pulls": 0,
+                    "rare_pity": 0,
+                    "guaranteed": false
+                }
+            },
+            "bag": {
+                "C\u1ed9ng Th\u1ea7n T\u1ed1c": 23,
+                "Nh\u00e2n V\u0169 B\u00e3o": 29,
+                "T\u1eadp Trung Cao": 24,
+                "Chia C\u1eaft Gi\u00f3": 22,
+                "Ghi Nh\u1edb Nhanh": 23,
+                "\u0110\u1ed3ng H\u1ed3 C\u00e1t": 5,
+                "Tr\u1eeb Ch\u1edbp Nho\u00e1ng": 27,
+                "Khi\u00ean Tri Th\u1ee9c": 2,
+                "B\u1ed9 Nh\u1edb Si\u00eau C\u1ea5p": 4,
+                "\u0110\u1ecbnh L\u00fd Pythago": 5,
+                "B\u1ea3o H\u1ed9 Thales": 3,
+                "Th\u1ea7n To\u00e1n Archimedes": 1,
+                "Cung Th\u1ee7 Logic": 5,
+                "La B\u00e0n Euler": 1,
+                "R\u1ed3ng S\u1ed1 H\u1ecdc": 1
+            },
+            "ticket_standard": 22,
+            "ticket_special": 131,
+            "equipped_pen": "pen_magic",
+            "active_buffs": {}
+        }
+    },
+    "admin1": {
+        "password": "admin1",
+        "status": "locked",
+        "data": {
+            "grade": 1,
+            "level": 1,
+            "xp": 0
+        },
+        "lock_date": "02/04/2026 21:10"
+    },
+    "admin2": {
+        "password": "admin2",
+        "status": "locked",
+        "data": {
+            "grade": 4,
+            "xp": 0,
+            "level": 1,
+            "history": [],
+            "completed_lessons": []
+        },
+        "lock_date": "02/04/2026 21:10"
+    },
+    "admin3": {
+        "password": "admin3",
+        "status": "active",
+        "data": {
+            "grade": 5,
+            "xp": 0,
+            "level": 1,
+            "history": [
+                {
+                    "date": "05/04/2026 21:49",
+                    "lesson": "B\u00e0i 1. \u00d4n t\u1eadp s\u1ed1 t\u1ef1 nhi\u00ean",
+                    "score": 150
+                },
+                {
+                    "date": "05/04/2026 21:49",
+                    "lesson": "B\u00e0i 1. \u00d4n t\u1eadp s\u1ed1 t\u1ef1 nhi\u00ean",
+                    "score": 150
+                },
+                {
+                    "date": "05/04/2026 21:46",
+                    "lesson": "B\u00e0i 1. \u00d4n t\u1eadp s\u1ed1 t\u1ef1 nhi\u00ean",
+                    "score": 150
+                },
+                {
+                    "date": "05/04/2026 21:46",
+                    "lesson": "B\u00e0i 1. \u00d4n t\u1eadp s\u1ed1 t\u1ef1 nhi\u00ean",
+                    "score": 150
+                },
+                {
+                    "date": "05/04/2026 21:38",
+                    "lesson": "B\u00e0i 1. \u00d4n t\u1eadp s\u1ed1 t\u1ef1 nhi\u00ean",
+                    "score": 150
+                }
+            ],
+            "completed_lessons": [
+                "B\u00e0i 1. \u00d4n t\u1eadp s\u1ed1 t\u1ef1 nhi\u00ean"
+            ],
+            "daily_tasks": {
+                "date": "2026-04-07",
+                "tasks": [
+                    {
+                        "id": "correct_10",
+                        "desc": "Tra loi dung 10 cau",
+                        "target": 10,
+                        "progress": 0,
+                        "reward": 50,
+                        "claimed": false
+                    },
+                    {
+                        "id": "combo_5",
+                        "desc": "Dat combo 5",
+                        "target": 5,
+                        "progress": 0,
+                        "reward": 70,
+                        "claimed": false
+                    },
+                    {
+                        "id": "play_1",
+                        "desc": "Choi 1 tran",
+                        "target": 1,
+                        "progress": 0,
+                        "reward": 30,
+                        "claimed": false
+                    }
+                ]
+            },
+            "daily_streak": 1,
+            "last_claim": "2026-04-07",
+            "achievements": [
+                "speed_demon",
+                "perfect_lesson",
+                "first_win"
+            ]
+        }
+    },
+    "admin367": {
+        "password": "123456",
+        "status": "active",
+        "data": {
+            "grade": 5,
+            "xp": 9870,
+            "level": 9999,
+            "history": [
+                {
+                    "date": "11/05/2026 21:26",
+                    "lesson": "B\u00e0i 1. \u00d4n t\u1eadp s\u1ed1 t\u1ef1 nhi\u00ean",
+                    "score": 725
+                }
+            ],
+            "completed_lessons": [
+                "B\u00e0i 1. \u00d4n t\u1eadp s\u1ed1 t\u1ef1 nhi\u00ean"
+            ],
+            "mastery_levels": {
+                "5_B\u00e0i 1. \u00d4n t\u1eadp s\u1ed1 t\u1ef1 nhi\u00ean": {
+                    "strength": 1.0,
+                    "ease_factor": 3.0,
+                    "interval": 7085880,
+                    "last_practiced": "11/05/2026 21:26"
+                }
+            },
+            "recent_answers": [
+                true,
+                true,
+                true,
+                true,
+                true,
+                true,
+                true,
+                true,
+                true,
+                true
+            ],
+            "streak": 15,
+            "max_streak": 15,
+            "energy": 100,
+            "fever_mode": true,
+            "flagged_topics": [],
+            "pet": {
+                "type": "clover",
+                "stage": 0,
+                "name": "C\u1ecf Non"
+            },
+            "collected_cards": [],
+            "avatar_path": "",
+            "gold": 42,
+            "unlocked_pets": [
+                "clover"
+            ],
+            "daily_tasks": {
+                "date": "2026-05-11",
+                "tasks": [
+                    {
+                        "id": "correct_10",
+                        "desc": "Tra loi dung 10 cau",
+                        "target": 10,
+                        "progress": 10,
+                        "reward": 50,
+                        "claimed": true
+                    },
+                    {
+                        "id": "combo_5",
+                        "desc": "Dat combo 5",
+                        "target": 5,
+                        "progress": 5,
+                        "reward": 70,
+                        "claimed": true
+                    },
+                    {
+                        "id": "play_1",
+                        "desc": "Choi 1 tran",
+                        "target": 1,
+                        "progress": 1,
+                        "reward": 30,
+                        "claimed": true
+                    }
+                ]
+            },
+            "daily_streak": 1,
+            "last_claim": "2026-05-11",
+            "skill_progress": {
+                "operations_mixed": {
+                    "name": "Ph\u00e9p t\u00ednh h\u1ed7n h\u1ee3p",
+                    "completed_lessons": [
+                        1
+                    ],
+                    "progress": 50.0
+                }
+            },
+            "unlocked_skins": [
+                "pen_basic",
+                "board_wood",
+                "board_candy"
+            ],
+            "daily": {
+                "date": "2026-05-11",
+                "played": false
+            }
+        }
+    }
+}

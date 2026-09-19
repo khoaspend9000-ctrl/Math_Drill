@@ -1,0 +1,122 @@
+{
+  "math_facts": {
+    "name": "Sự Thật Toán Học",
+    "rarity": "common",
+    "items": [
+      {
+        "id": "pi",
+        "title": "Số Pi",
+        "content": "π ≈ 3.14159265359...",
+        "icon": "🥧"
+      },
+      {
+        "id": "golden_ratio",
+        "title": "Tỷ Lệ Vàng",
+        "content": "φ ≈ 1.6180339887...",
+        "icon": "✨"
+      },
+      {
+        "id": "zero",
+        "title": "Số 0",
+        "content": "Số 0 được phát minh ở Ấn Độ cổ đại",
+        "icon": "0️⃣"
+      },
+      {
+        "id": "prime",
+        "title": "Số Nguyên Tố",
+        "content": "Số chỉ chia hết cho 1 và chính nó",
+        "icon": "🔢"
+      }
+    ]
+  },
+  "history": {
+    "name": "Lịch Sử Toán Học",
+    "rarity": "rare",
+    "items": [
+      {
+        "id": "euclid",
+        "title": "Euclid",
+        "content": "Cha đẻ của hình học",
+        "icon": "📐"
+      },
+      {
+        "id": "pythagoras",
+        "title": "Pythagoras",
+        "content": "Phát hiện định lý a²+b²=c²",
+        "icon": "📏"
+      },
+      {
+        "id": "newton",
+        "title": "Newton",
+        "content": "Phát minh vi phân và tích phân",
+        "icon": "🍎"
+      },
+      {
+        "id": "gauss",
+        "title": "Gauss",
+        "content": "Hoàng tử của toán học",
+        "icon": "👑"
+      }
+    ]
+  },
+  "tips": {
+    "name": "Mẹo Học Tập",
+    "rarity": "common",
+    "items": [
+      {
+        "id": "tip1",
+        "title": "Luyện Tập",
+        "content": "Luyện tập đều đặn giúp ghi nhớ lâu hơn",
+        "icon": "📚"
+      },
+      {
+        "id": "tip2",
+        "title": "Giải Thích",
+        "content": "Giải thích cho người khác giúp hiểu sâu hơn",
+        "icon": "🗣️"
+      },
+      {
+        "id": "tip3",
+        "title": "Nghỉ Ngơi",
+        "content": "Nghỉ ngơi giữa các buổi học giúp não bộ thư giãn",
+        "icon": "😴"
+      },
+      {
+        "id": "tip4",
+        "title": "Hình Ảnh",
+        "content": "Sử dụng hình ảnh để ghi nhớ tốt hơn",
+        "icon": "🖼️"
+      }
+    ]
+  },
+  "achievements": {
+    "name": "Thành Tích Đặc Biệt",
+    "rarity": "legendary",
+    "items": [
+      {
+        "id": "first_lesson",
+        "title": "Bước Đầu Tiên",
+        "content": "Hoàn thành bài học đầu tiên",
+        "icon": "🎯"
+      },
+      {
+        "id": "streak_10",
+        "title": "Chuỗi 10",
+        "content": "Trả lời đúng 10 câu liên tiếp",
+        "icon": "🔥"
+      },
+      {
+        "id": "all_lessons",
+        "title": "Hoàn Tất Tất Cả",
+        "content": "Hoàn thành tất cả bài học",
+        "icon": "🏆"
+      },
+      {
+        "id": "fever_master",
+        "title": "Bậc Thầy Fever",
+        "content": "Kích hoạt Fever Mode 10 lần",
+        "icon": "⚡"
+      }
+    ]
+  }
+}
