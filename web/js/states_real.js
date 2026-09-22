@@ -96,6 +96,52 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
     return lines;
   }
 
+  /* Combo HUD — port nguyên văn get_combo_text/get_combo_color
+     (game_init.py:429-444). Trả "" khi combo < 3 (Python KHÔNG vẽ combo). */
+  function comboText(streak) {
+    const n = Number(streak) || 0;
+    if (n >= 20) return '🔥🔥🔥 INSANE COMBO! 🔥🔥🔥';
+    if (n >= 15) return '⚡⚡ MEGA COMBO! ⚡⚡';
+    if (n >= 10) return '💥💥 SUPER COMBO! 💥💥';
+    if (n >= 7) return '🔥🔥 HIGH COMBO! 🔥🔥';
+    if (n >= 5) return '⚡ GREAT COMBO! ⚡';
+    if (n >= 3) return '✨ COMBO! ✨';
+    return '';
+  }
+  function comboColor(streak) {
+    const n = Number(streak) || 0;
+    if (n >= 10) return [255, 50, 50];
+    if (n >= 7) return [255, 150, 50];
+    if (n >= 5) return [255, 200, 50];
+    if (n >= 3) return [100, 200, 255];
+    return [200, 200, 200];
+  }
+
+  /* M10-B: đẩy snapshot tiến trình lên server. Đảm bảo dữ liệu được
+     lưu sebelum页面 tiếp tục — tiên trình phải tồn tại qua reload. */
+  async function syncPlayerToServer() {
+    const a = global.Game && global.Game.auth;
+    if (a && typeof a.pushPlayerData === 'function') {
+      try { await a.pushPlayerData(); }
+      catch (e) { L.warn('[Sync] pushPlayerData error', e && e.message); }
+    }
+  }
+
+  /* M10-QA2 FIX — XP lost across reload.
+     The account blob (auth.data()) stores experience under `xp` (Desktop
+     AccountSystem key, mirrored server-side by user_store.js/database.js),
+     while PlayerData (player.py) reads/writes `exp`. Feeding the account blob
+     straight into loadSaveData() therefore silently dropped XP on every login
+     (deep-run repro: 4020 -> 0). Translate the key explicitly; the account
+     value wins because it is the one victory/defeat/menu persist. */
+  function accountToPlayerSave(data) {
+    const d = data || {};
+    const out = Object.assign({}, d);
+    if (d.xp !== undefined) out.exp = d.xp;
+    else if (out.exp === undefined) out.exp = 0;
+    return out;
+  }
+
   // ---- Người chơi M5: PlayerData thật (player.js) thay stub M4 ----
   function createPlayer(username, grade) {
     const pd = new global.PlayerData();
@@ -287,15 +333,24 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
         // M5: AccountSystem thật (PBKDF2 WebCrypto, async) — main.py login_action
         auth.login(username, password).then(function (res) {
           if (res.ok) {
-            const d = auth.data();
-            const pd = createPlayer(username, d.grade || 1);
-            pd.loadSaveData(d); // sync_player_stats (game_init.py:445-449)
-            pd.username = username;
-            global.Game.player = pd;
-            const Save = global.Save;
-            if (Save && Save.save) Save.save(Save.KEYS.SESSION, { last_user: username });
-            L.info('[Login] M5 login OK →', username, '| level', pd.level, '| grade', pd.grade);
-            global.Game.states.change('menu', null, 'fade');
+            /* M10-B FIX: pull the server-side progress blob FIRST, then build the
+               player from it. Before this, backend data() returned {} and every
+               login reset XP/gold/level to defaults (progress lost on reload). */
+            const pull = (typeof auth.pullPlayerData === 'function')
+              ? auth.pullPlayerData() : Promise.resolve(null);
+            return Promise.resolve(pull).then(function () {
+              const d = auth.data();
+              const pd = createPlayer(username, d.grade || 1);
+              /* M10-QA2 FIX: map the account key `xp` -> PlayerData `exp`
+                 (see accountToPlayerSave) — otherwise XP resets on login. */
+              pd.loadSaveData(accountToPlayerSave(d)); // sync_player_stats (game_init.py:445-449)
+              pd.username = username;
+              global.Game.player = pd;
+              const Save = global.Save;
+              if (Save && Save.save) Save.save(Save.KEYS.SESSION, { last_user: username });
+              L.info('[Login] M5 login OK →', username, '| level', pd.level, '| grade', pd.grade);
+              global.Game.states.change('menu', null, 'fade');
+            });
           } else {
             self.errorMsg = res.msg || 'Sai tài khoản/mật khẩu';
             self.errorTimer = 3.0;
@@ -443,11 +498,22 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
       ];
     }
 
-    enter() {
+    async enter() {
       this.time = 0;
       this.fadeIn = 0;
       this.examMsg = '';
       this.examMsgTimer = 0;
+      // M10-B: sync progress to the server whenever the player returns to the
+      // menu (covers victory/defeat continue and the lesson back button).
+      const G = global.Game;
+      if (G.auth && typeof G.auth.save === 'function' && G.auth.currentUser && G.player) {
+        const d = G.auth.data();
+        d.xp = G.player.exp;
+        d.level = G.player.level;
+        d.gold = G.player.gold;
+        G.auth.save();
+      }
+      await syncPlayerToServer();
       // Python: sound_manager.set_bgm("menu") — M4 chưa bật BGM
       // (web/audio/ mới có 1 file, tránh 404 console; bật ở M8).
       L.info('[Menu] enter — user:', getPlayer().username, '| grade', getPlayer().grade);
@@ -509,12 +575,15 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
           // Python LogoutState (main.py:706-710): current_user = None.
           // M5: sync player → account data, persist, xoá session, player=null.
           const G = global.Game;
-          if (G.auth && G.auth.currentUser && G.player) {
+          if (G.auth && typeof G.auth.save === 'function' && G.auth.currentUser && G.player) {
             const d = G.auth.data();
             d.xp = G.player.exp;
             d.level = G.player.level;
             d.gold = G.player.gold;
             G.auth.save();
+            /* M10-B: persist BEFORE the session is destroyed (after logout the
+               player endpoint is no longer reachable with this cookie). */
+            syncPlayerToServer();
             G.auth.logout();
           }
           const Save = global.Save;
@@ -630,6 +699,28 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
     });
   }
 
+  /* P0 FIX (question pipeline): the lesson state needs the NUMERIC lesson id,
+     not the display title, because QuestionGenerator.generate_question() routes
+     on `lesson_id` numerically. Forwarding the title string (e.g. "Bài 1") made
+     `lesson_id` non-numeric, so every grade-1 lesson fell through to the generic
+     branch and produced `"Tính nhanh: Bài 1 - 1 = ?"` with correct_answer "NaN"
+     (1/10 variety — the same nonsense question forever). Titles are still used
+     for display + theory lookup; ids travel alongside them. Accepts legacy
+     string lists (falls back to the 1-based position). */
+  function _lessonIds(list) {
+    return (list || []).map(function (l, i) {
+      if (l && typeof l === 'object') {
+        var n = parseInt(l.id, 10);
+        if (isFinite(n) && n > 0) return n;
+        var m = /(\d+)/.exec(String(l.title || ''));
+        if (m) return parseInt(m[1], 10);
+      }
+      var s = /(\d+)/.exec(String(l));
+      if (s) return parseInt(s[1], 10);
+      return i + 1;
+    });
+  }
+
   class LessonSelectState extends BaseState {
     constructor() {
       super('lesson_select');
@@ -640,6 +731,7 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
       this.itemsPerPage = 8;
       this.currentPage = 0;
       this.totalPages = 1;
+      this.lessonIds = [];       // P0: numeric ids parallel to this.lessons
       this.backBtn = { x: 80, y: 650, w: 150, h: 50 };
       this.prevBtn = { x: 720, y: 650, w: 150, h: 50 };
       this.nextBtn = { x: 1030, y: 650, w: 150, h: 50 };
@@ -649,6 +741,7 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
       this.grade = (params && params.grade) || getPlayer().grade || 1;
       this.currentPage = 0;
       this.lessons = [];
+      this.lessonIds = [];
       this.dataMissing = false;
       this.loading = true;
       const loader = global.Game && global.Game.dataLoader;
@@ -660,11 +753,13 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
         if (ret && typeof ret.then === 'function') {
           ret.then(function (lessons) {
             self.lessons = _lessonTitles(lessons);
+            self.lessonIds = _lessonIds(lessons);
             self.loading = false;
             self.totalPages = Math.max(1, Math.ceil(self.lessons.length / self.itemsPerPage));
             L.info('[LessonSelect] lessons:', self.lessons.length, '| grade', self.grade);
           }).catch(function (err) {
             self.lessons = [];
+            self.lessonIds = [];
             self.loading = false;
             self.dataMissing = true;
             L.error('[LessonSelect] failed to load lessons:', err);
@@ -672,6 +767,7 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
           this.totalPages = 1;
         } else {
           self.lessons = _lessonTitles(ret);
+          self.lessonIds = _lessonIds(ret);
           self.loading = false;
           self.dataMissing = false;
           self.totalPages = Math.max(1, Math.ceil(self.lessons.length / self.itemsPerPage));
@@ -713,11 +809,12 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
         const by = 150 + (i % 4) * 110;
         if (hit(click, bx, by, 480, 80)) {
           const lesson = this.lessons[idx];
+          const lessonId = this.lessonIds[idx] !== undefined ? this.lessonIds[idx] : (idx + 1);
           const maxUnlocked = Math.floor((getPlayer().level - 1) / 6) + 1;
           if (idx + 1 <= maxUnlocked) {
-            L.info('[LessonSelect] mở bài:', lesson);
+            L.info('[LessonSelect] mở bài:', lesson, '| id', lessonId);
             // Parity main.py:960 — LessonSelect → TheoryState → LessonState
-            global.Game.states.change('theory', { grade: this.grade, title: lesson }, 'fade');
+            global.Game.states.change('theory', { grade: this.grade, title: lesson, lessonId: lessonId }, 'fade');
           } else {
             L.info('[LessonSelect] bài khóa — cần level', (idx + 1 - 1) * 6 + 1);
           }
@@ -790,10 +887,12 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
       this.tc = 15;              // tổng câu (Python main.py:1422)
       this.title = 'Bài 1';
       this.grade = 1;
+      this.lessonId = 1;         // P0: numeric lesson id for QuestionGenerator
       this.cc = 0;               // câu hiện tại (0-based)
       this.sc = 0;               // điểm bài tập
       this.correctCount = 0;
-      this.comboStreak = 0;
+      this.comboStreak = 0;      // combo HIỂN THỊ — sync từ player khi enter (Python đọc player.combo_streak)
+      this.time = 0;             // pulse animation cho combo (main.py:1728 dùng time.time())
       this.wrongAnswers = [];
       this.feedback = null;
       this.pendingAdvance = false;
@@ -810,10 +909,25 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
     enter(params) {
       this.grade = (params && params.grade) || getPlayer().grade || 1;
       this.title = (params && params.title) || 'Bài 1';
+      /* P0 FIX: resolve the NUMERIC lesson id. Previously only the title string
+         was forwarded, so generate_question() received a non-numeric lesson_id
+         and every question degraded to "Tính nhanh: <title> - 1 = ?" with
+         correct_answer "NaN" (single repeated question per lesson). */
+      var _lid = params && parseInt(params.lessonId, 10);
+      if (!isFinite(_lid) || _lid <= 0) {
+        var _lm = /(\d+)/.exec(String(this.title));
+        _lid = _lm ? parseInt(_lm[1], 10) : 1;
+      }
+      this.lessonId = _lid;
       this.cc = 0;
       this.sc = 0;
       this.correctCount = 0;
-      this.comboStreak = 0;
+      /* Desktop parity: HUD combo đọc player.combo_streak (main.py:1723
+         get_combo_text). Combo của player KHÔNG bị reset khi vào bài mới —
+         Python LessonState.__init__ chỉ reset adaptive_ai, không reset combo.
+         Trước đây web khởi tạo 0 nên câu trả lời đúng đầu tiên làm HUD nhảy 0→N. */
+      this.comboStreak = (getPlayer() && getPlayer().comboStreak) || 0;
+      this.time = 0;
       this.wrongAnswers = [];
       this.feedback = null;
       this.pendingAdvance = false;
@@ -841,7 +955,7 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
       const qg = global.Game.questionGen;
       let res = null;
       try {
-        res = qg.generate(this.grade, this.title, 3, getPlayer().username);
+        res = qg.generate(this.grade, this.lessonId, 3, getPlayer().username);
       } catch (err) {
         L.error('[Lesson] generate error', err);
       }
@@ -928,6 +1042,7 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
             title: 'HOÀN THÀNH BÀI HỌC!',
             score: this.gm.score,
             lessonTitle: this.title,
+            lessonId: this.lessonId,
             stats: stats
           }, 'fade');
         } else {
@@ -936,6 +1051,7 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
             correct: stats.correct,
             total: this.tc,
             lessonTitle: this.title,
+            lessonId: this.lessonId,
             stats: stats
           }, 'fade');
         }
@@ -974,6 +1090,7 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
     }
 
     update(dt) {
+      this.time += dt;
       if (this.cardScale < 1) this.cardScale = Math.min(1, this.cardScale + dt * 5);
     }
 
@@ -1029,10 +1146,17 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
             });
           }
         }
-        // Combo display (Python get_combo_text main.py:1722-1736)
-        if (this.comboStreak >= 2) {
-          R.text('COMBO x' + this.comboStreak + ' 🔥', W2 / 2, 405, {
-            font: 'bold 26px Quicksand, sans-serif', fill: '#ffb561', align: 'center', baseline: 'middle'
+        /* Combo display — port trực tiếp get_combo_text/get_combo_color
+           (game_init.py:429-444) + luật vẽ main.py:1722-1736: chỉ hiện khi
+           player.combo_streak >= 3, font lớn dần, có pulse. */
+        const comboLabel = comboText(this.comboStreak);
+        if (comboLabel) {
+          const cfs = 28 + Math.min(Math.floor(this.comboStreak / 3), 12);
+          const pulse = Math.sin(this.time * (6 + Math.floor(this.comboStreak / 3))) *
+                        (3 + Math.floor(this.comboStreak / 5));
+          R.text(comboLabel, W2 / 2, 450 + pulse, {
+            font: 'bold ' + cfs + 'px Quicksand, Segoe UI Emoji, sans-serif',
+            fill: css(comboColor(this.comboStreak)), align: 'center', baseline: 'middle'
           });
         }
         // Option buttons
@@ -1100,6 +1224,14 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
     enter(params) {
       this.title = (params && params.title) ? String(params.title) : this.title;
       this.grade = (params && params.grade) || getPlayer().grade || 1;
+      /* P0: carry the numeric lesson id through Theory → Lesson so the question
+         generator can route on `lesson_id`. Fallback: derive from the title. */
+      var _pid = params && parseInt(params.lessonId, 10);
+      if (!isFinite(_pid) || _pid <= 0) {
+        var _m = /(\d+)/.exec(this.title);
+        _pid = _m ? parseInt(_m[1], 10) : 1;
+      }
+      this.lessonId = _pid;
       const factory = global.TheoryPages || (typeof require === 'function' ? require('./theory_pages.js') : null);
       const pages = factory ? (factory()[this.grade] || []) : [];
       const page = pages.find(p => p.t === this.title);
@@ -1142,7 +1274,7 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
       const click = input.consumeClick ? input.consumeClick() : null;
       if (!click) return;
       if (hit(click, this.startBtn.x, this.startBtn.y, this.startBtn.w, this.startBtn.h)) {
-        global.Game.states.change('lesson', { grade: this.grade, title: this.title }, 'fade');
+        global.Game.states.change('lesson', { grade: this.grade, title: this.title, lessonId: this.lessonId }, 'fade');
       } else if (hit(click, this.backBtn.x, this.backBtn.y, this.backBtn.w, this.backBtn.h)) {
         global.Game.states.change('lesson_select', { grade: this.grade }, 'fade');
       } else if (hit(click, this.openBookBtn.x, this.openBookBtn.y, this.openBookBtn.w, this.openBookBtn.h)
@@ -1213,12 +1345,13 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
       this.reviewBtn = { x: W / 2 - 125, y: H - 200, w: 250, h: 60 };
     }
 
-    enter(params) {
+        async enter(params) {
       this.timer = 0;
       this.showUi = false;
       this.title = (params && params.title) || this.title;
       this.score = (params && typeof params.score === 'number') ? params.score : 0;
       this.lessonTitle = (params && params.lessonTitle) || '';
+      this.lessonId = (params && parseInt(params.lessonId, 10)) || 0;
       this.stats = (params && params.stats) || {};
       const acc = this.stats.accuracy || 0;
       // Rank logic giữ nguyên Python main.py:1101-1105
@@ -1230,6 +1363,16 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
       this.goldEarned = 0; // reward thật: reward_gold_for_result ở M7
       L.info('[Victory] enter — rank', this.rank, '| xp', this.xpEarned,
         '(M4: chưa cộng vào player, M5/M7 sẽ port)');
+      // M10-B: persist progress immediately, even if the tab is closed here.
+      const G = global.Game;
+      if (G.auth && typeof G.auth.save === 'function' && G.auth.currentUser && G.player) {
+        const d = G.auth.data();
+        d.xp = G.player.exp;
+        d.level = G.player.level;
+        d.gold = G.player.gold;
+        G.auth.save();
+      }
+      await syncPlayerToServer();
     }
 
     exit() {}
@@ -1325,16 +1468,27 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
       this.reviewBtn = { x: W / 2 - 125, y: H - 200, w: 250, h: 60 };
     }
 
-    enter(params) {
+        async enter(params) {
       this.timer = 0;
       this.showUi = false;
       this.title = (params && params.title) || this.title;
       this.correct = (params && typeof params.correct === 'number') ? params.correct : 0;
       this.total = (params && typeof params.total === 'number') ? params.total : 1;
       this.lessonTitle = (params && params.lessonTitle) || '';
+      this.lessonId = (params && parseInt(params.lessonId, 10)) || 0;
       this.stats = (params && params.stats) || {};
       // Python: sound_manager.set_bgm("defeat") — M4 chưa bật BGM (M8)
       L.info('[Defeat] enter — đúng', this.correct, '/', this.total);
+      // M10-B: persist progress immediately, even if the tab is closed here.
+      const G = global.Game;
+      if (G.auth && typeof G.auth.save === 'function' && G.auth.currentUser && G.player) {
+        const d = G.auth.data();
+        d.xp = G.player.exp;
+        d.level = G.player.level;
+        d.gold = G.player.gold;
+        G.auth.save();
+      }
+      await syncPlayerToServer();
     }
 
     exit() {}
@@ -1346,7 +1500,8 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
         // Python main.py:1028-1030: retry → LessonState(lesson_title)
         global.Game.states.change('lesson', {
           grade: getPlayer().grade,
-          title: this.lessonTitle || 'Bài 1'
+          title: this.lessonTitle || 'Bài 1',
+          lessonId: this.lessonId || undefined
         }, 'fade');
       } else if (hit(click, this.homeBtn.x, this.homeBtn.y, this.homeBtn.w, this.homeBtn.h)) {
         global.Game.states.change('menu', null, 'fade');

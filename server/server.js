@@ -18,11 +18,15 @@ const COOKIE_TTL_MS = 24 * 60 * 60 * 1000;
 // the same interface. Default remains the M10-C file stores (backward compatible).
 const BACKEND = process.env.MATHDRILL_BACKEND === 'sqlite' ? 'sqlite' : 'file';
 
+// M10-B: MATHDRILL_DATA_DIR overrides the default data/ directory for file-backed
+// stores. Used by tests to isolate per-suite data directories.
+const DATA_DIR = process.env.MATHDRILL_DATA_DIR || path.join(__dirname, 'data');
+
 let userStore, sessionStore;
 if (BACKEND === 'sqlite') {
   const { DatabaseUserStore, DatabaseSessionStore } = require('./database');
   userStore = new DatabaseUserStore({
-    filePath: path.join(__dirname, 'data', 'mathdrill.db')
+    filePath: path.join(DATA_DIR, 'mathdrill.db')
   });
   sessionStore = new DatabaseSessionStore({
     db: userStore.db,
@@ -31,10 +35,10 @@ if (BACKEND === 'sqlite') {
   console.log('[Server] Persistence backend: sqlite');
 } else {
   userStore = new UserStore({
-    filePath: path.join(__dirname, 'data', 'users.json')
+    filePath: path.join(DATA_DIR, 'users.json')
   });
   sessionStore = new SessionStore({
-    filePath: path.join(__dirname, 'data', 'sessions.json'),
+    filePath: path.join(DATA_DIR, 'sessions.json'),
     ttlMs: COOKIE_TTL_MS
   });
   sessionStore.loadFromFile();
@@ -122,7 +126,15 @@ function readJsonBody(req, maxBytes = 64 * 1024) {
     let size = 0;
     req.on('data', chunk => {
       size += chunk.length;
-      if (size > maxBytes) { req.destroy(); return reject(new Error('PAYLOAD_TOO_LARGE')); }
+      if (size > maxBytes) {
+        /* M10-B FIX: previously req.destroy() killed the socket, so the client
+           never received the documented 413 (it saw "socket hang up"). Drain and
+           discard the remainder instead, then let the handler answer 413. */
+        req.removeAllListeners('data');
+        req.removeAllListeners('end');
+        req.resume();
+        return reject(new Error('PAYLOAD_TOO_LARGE'));
+      }
       body += chunk;
     });
     req.on('end', () => {
@@ -137,8 +149,10 @@ function readJsonBody(req, maxBytes = 64 * 1024) {
 async function handleAuth(req, res, pathname) {
   const method = req.method.toUpperCase();
   const sessionId = getCookie(req, COOKIE_NAME);
-  // M10-F F3: JSON APIs only accept application/json bodies.
-  if (method === 'POST') {
+    // M10-F F3: JSON APIs only accept application/json bodies.
+  // Bodyless POSTs (e.g. /api/auth/logout) must not be rejected for lacking
+  // a content-type — only enforce when a real JSON body is present.
+  if (method === 'POST' && req.headers['content-length'] && Number(req.headers['content-length']) > 0) {
     const ct = String(req.headers['content-type'] || '');
     if (!ct.toLowerCase().includes('application/json')) {
       return sendJson(res, 415, { ok: false, error: 'UNSUPPORTED_MEDIA_TYPE' });
@@ -292,6 +306,57 @@ function serveStatic(req, res, pathname) {
   });
 }
 
+// ===== M10-B: player progress persistence (server-side authority) =====
+// The browser can no longer lose progress on reload: the player blob round-trips
+// through a session-authenticated endpoint. Rules mirror handleAuth:
+//   - cross-origin Origin headers rejected (CSRF defense-in-depth)
+//   - POST bodies must be application/json (bodyless POSTs still allowed)
+//   - 401 when there is no valid session; payload is a plain JSON object only
+function handlePlayer(req, res, pathname, sessionId) {
+  const method = req.method.toUpperCase();
+  const origin = req.headers['origin'];
+  if (origin) {
+    const host = req.headers['host'];
+    let originHost = null;
+    try { originHost = new URL(origin).host; } catch (e) { originHost = null; }
+    if (!originHost || originHost !== host) {
+      return sendJson(res, 403, { ok: false, error: 'CROSS_ORIGIN_FORBIDDEN' });
+    }
+  }
+  if (method === 'POST' && req.headers['content-length'] && Number(req.headers['content-length']) > 0) {
+    const ct = String(req.headers['content-type'] || '');
+    if (!ct.toLowerCase().includes('application/json')) {
+      return sendJson(res, 415, { ok: false, error: 'UNSUPPORTED_MEDIA_TYPE' });
+    }
+  }
+  const user = authService.getSessionUser(sessionId);
+  if (!user) return sendJson(res, 401, { ok: false, error: 'AUTH_REQUIRED' });
+
+  if (method === 'GET' && pathname === '/api/player/data') {
+    const data = userStore.getUserData ? userStore.getUserData(user.username) : null;
+    return sendJson(res, 200, { ok: true, data: (data && typeof data === 'object') ? data : {} });
+  }
+  if (method === 'POST' && pathname === '/api/player/data') {
+    return readJsonBody(req).then(function (body) {
+      if (!body || typeof body !== 'object' || Array.isArray(body)) {
+        return sendJson(res, 400, { ok: false, error: 'INVALID_INPUT' });
+      }
+      const result = userStore.setUserData(user.username, body);
+      if (!result.ok) {
+        const status = result.error === 'AUTH_REQUIRED' ? 401 : 400;
+        return sendJson(res, status, result);
+      }
+      return sendJson(res, 200, { ok: true });
+    }).catch(function (err) {
+      if (err.message === 'INVALID_JSON') return sendJson(res, 400, { ok: false, error: 'INVALID_INPUT' });
+      if (err.message === 'PAYLOAD_TOO_LARGE') return sendJson(res, 413, { ok: false, error: 'INVALID_INPUT' });
+      console.error('[Server] Player save error:', err.message);
+      return sendJson(res, 500, { ok: false, error: 'SERVER_ERROR' });
+    });
+  }
+  return sendJson(res, 404, { ok: false, error: 'NOT_FOUND' });
+}
+
 const server = http.createServer(async (req, res) => {
   const parsed = new URL(req.url, `http://localhost:${PORT}`);
   const pathname = parsed.pathname;
@@ -307,6 +372,14 @@ const server = http.createServer(async (req, res) => {
     try { handleAdmin(req, res, pathname, getCookie(req, COOKIE_NAME)); }
     catch (err) {
       console.error('[Server] Admin unhandled error:', err.message);
+      if (!res.headersSent) sendJson(res, 500, { ok: false, error: 'SERVER_ERROR' });
+    }
+    return;
+  }
+  if (pathname.startsWith('/api/player/')) {
+    try { handlePlayer(req, res, pathname, getCookie(req, COOKIE_NAME)); }
+    catch (err) {
+      console.error('[Server] Player unhandled error:', err.message);
       if (!res.headersSent) sendJson(res, 500, { ok: false, error: 'SERVER_ERROR' });
     }
     return;

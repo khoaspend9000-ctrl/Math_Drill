@@ -100,6 +100,18 @@
     return null;
   }
 
+  /* M10-B: server-side player progress round-trip (session-cookie auth). */
+  async function backendGetPlayerData() {
+    const r = await apiFetch('/api/player/data');
+    if (r && r.status === 200 && r.data && r.data.ok) return r.data.data || {};
+    return null;
+  }
+
+  async function backendSavePlayerData(data) {
+    const r = await apiFetch('/api/player/data', data || {});
+    return !!(r && r.status === 200 && r.data && r.data.ok);
+  }
+
 
   const ITERATIONS = 100000; // game_init.py:325
   const ALGO = 'PBKDF2';
@@ -224,9 +236,41 @@
       if (Save && Save.save) Save.save(Save.KEYS.ACCOUNTS, this.accounts);
     }
 
+    /* M10-B: in-memory record so data() works in backend mode (never persisted
+       client-side and never contains secrets — only the player progress blob). */
+    _ensureRecord(username) {
+      const u = String(username || this.currentUser || '').trim();
+      if (!u) return null;
+      if (!this.accounts[u]) this.accounts[u] = { username: u, data: defaultUserData(1) };
+      if (!this.accounts[u].data) this.accounts[u].data = defaultUserData(1);
+      return this.accounts[u];
+    }
+
+    /* M10-B: fetch the server-side player blob (after login, before building
+       the PlayerData snapshot). Returns the merged data object or null. */
+    async pullPlayerData() {
+      if (!USE_BACKEND || !this.currentUser) return null;
+      const server = await backendGetPlayerData();
+      const rec = this._ensureRecord(this.currentUser);
+      if (!rec) return null;
+      if (server && typeof server === 'object' && Object.keys(server).length) {
+        rec.data = Object.assign({}, rec.data, server);
+      }
+      return rec.data;
+    }
+
+    /* M10-B: push the current progress blob (fire-and-forget; errors only log). */
+    pushPlayerData() {
+      if (!USE_BACKEND || !this.currentUser) return Promise.resolve(false);
+      const rec = this._ensureRecord(this.currentUser);
+      if (!rec) return Promise.resolve(false);
+      return backendSavePlayerData(rec.data || {}).catch(function () { return false; });
+    }
+
     // game_init.py:4482-4520 — setdefault từng key như Python
     data() {
       if (!this.currentUser) return {};
+      this._ensureRecord(this.currentUser);
       const obj = this.accounts[this.currentUser];
       if (!obj) return {};
       if (!obj.data) {
@@ -253,6 +297,10 @@
         const res = await backendLogin(u, p);
         if (res.ok) {
           this.currentUser = (res.user && res.user.username) || String(u).trim();
+          /* M10-B FIX: backend mode previously left this.accounts empty, so data()
+             always returned {} and every login reset the player to level 1 —
+             progress was never persisted anywhere. */
+          this._ensureRecord(this.currentUser);
           this.data(); // init defaults như Python login
         }
         return res;

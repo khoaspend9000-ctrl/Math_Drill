@@ -22,7 +22,9 @@ const PASS = 'QaPass123!';
 // Known random admin password — supplied to the server bootstrap via env so the
 // harness and the server agree on it deterministically. Never written to any
 // web/ artifact; satisfies admin_rbac T09 (no admin secret in web/).
-const ADMIN_PW = 'qa-admin-' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-6);
+// LoginState caps each input field at 20 chars (Desktop parity: main.py login gate),
+// so keep the admin password inside that limit to avoid keyboard.type truncation.
+const ADMIN_PW = 'qa-admin-' + Math.random().toString(36).slice(2, 8) + Date.now().toString(36).slice(-3);
 
 const errors = [];   // console errors, pageerrors, failed/broken requests
 const net404 = [];
@@ -691,6 +693,8 @@ async function ready(page, ms) { await page.waitForTimeout(ms || 650); }
     expectedAuthz.slice(0, 10).forEach(function (e) { console.log('  ' + e); });
     t('E03 RBAC gate fires in browser: non-admin blocked from /api/admin/* (n=' +
       expectedAuthz.length + ')', expectedAuthz.length >= 1);
+    console.log('');
+    console.log('FINAL_QA_BROWSER: pass=' + pass + ' fail=' + fail);
     try { await browser.close(); } catch (e) {}
     try { server.kill(); } catch (e) {}
     process.exit(fail > 0 ? 1 : 0);

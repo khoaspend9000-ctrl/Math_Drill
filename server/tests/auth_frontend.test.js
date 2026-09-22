@@ -43,11 +43,15 @@ function parseCookies(h) {
 }
 
 async function main() {
-  process.env.PORT = '39200';
-  // Wipe data BEFORE loading server module (see auth.test.js rationale).
-  const dataDir = path.join(__dirname, '..', 'data');
-  if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
-  for (const f of ['users.json', 'sessions.json']) { const fp = path.join(dataDir, f); if (fs.existsSync(fp)) fs.unlinkSync(fp); }
+  process.env.PORT = '0';
+  process.env.NODE_ENV = 'test';
+  process.env.MATHDRILL_ADMIN_PASSWORD = 'auth_test_secret';
+  process.env.MATHDRILL_DATA_DIR = path.join(__dirname, 'data_test_auth_frontend');
+  delete process.env.MATHDRILL_BACKEND;
+
+  const testDataDir = path.join(__dirname, 'data_test_auth_frontend');
+  if (!fs.existsSync(testDataDir)) fs.mkdirSync(testDataDir, { recursive: true });
+  for (const f of ['users.json', 'sessions.json']) { const fp = path.join(testDataDir, f); if (fs.existsSync(fp)) fs.unlinkSync(fp); }
   delete require.cache[require.resolve(SERVER_PATH)];
   const srv = require(SERVER_PATH);
   const server = await srv.start();

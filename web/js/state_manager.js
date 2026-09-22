@@ -32,13 +32,19 @@
 
     change(name, params, transitionType) {
       if (!this.states[name]) {
+        /* synchronous throw (callers/tests rely on it — an async function would
+           turn this into a rejected promise instead). */
         throw new Error('[StateManager] Unknown state: ' + name);
       }
 
       const useTransition = transitionType !== null && this.current && this.transition;
       if (!useTransition) {
-        this._swap(name, params);
-        return;
+        /* M10-QA2: the swap itself is SYNCHRONOUS again (current/currentName are
+           updated before change() returns) — only an async enter() promise is
+           handed back so callers that care can await the side-effects. Making
+           _swap fully async deferred the swap by a microtask, which broke rapid
+           change() calls and every "assert right after change()" test. */
+        return this._swap(name, params);
       }
 
       this._pendingName = name;
@@ -46,12 +52,14 @@
       this.transition.effect_type = transitionType || 'fade';
       const self = this;
       this.transition.onMidpoint = function () {
-        self._swap(self._pendingName, self._pendingParams);
+        const pending = self._swap(self._pendingName, self._pendingParams);
         self._pendingName = null;
         self._pendingParams = null;
+        return pending;
       };
       this.transition.start();
       L.info('[StateManager] Transition to', name);
+      return Promise.resolve();
     }
 
     _swap(name, params) {
@@ -59,13 +67,23 @@
         try { this.current.exit(); }
         catch (err) { L.error('[StateManager] exit error', err); }
       }
-      this.currentName = name;
       this.current = this.states[name];
+      let pendingEnter = null;
       if (this.current && typeof this.current.enter === 'function') {
-        try { this.current.enter(params || null); }
+        let result;
+        try { result = this.current.enter(params || null); }
         catch (err) { L.error('[StateManager] enter error', err); }
+        if (result && typeof result.then === 'function') {
+          /* async enter() (e.g. syncPlayerToServer) — never block the swap and
+             never leak an unhandled rejection. */
+          pendingEnter = result.catch(function (err) {
+            L.error('[StateManager] async enter error', err);
+          });
+        }
       }
+      this.currentName = name;
       L.info('[StateManager] Now in', name);
+      return pendingEnter || Promise.resolve();
     }
 
     handleInput(input, dt) {

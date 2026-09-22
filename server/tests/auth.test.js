@@ -45,13 +45,16 @@ function parseCookies(h) {
 }
 
 async function main() {
-  process.env.PORT = '0'; // ephemeral: immune to lingering listeners (EADDRINUSE)
-  // Wipe data BEFORE loading server module: UserStore._load()/SessionStore.loadFromFile()
-  // run at construction — stale records from prior runs caused flaky 401/ENOENT.
-  const dataDir = path.join(__dirname, '..', 'data');
-  if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+  process.env.PORT = '0';
+  process.env.NODE_ENV = 'test';
+  process.env.MATHDRILL_ADMIN_PASSWORD = 'auth_test_secret';
+  process.env.MATHDRILL_DATA_DIR = path.join(__dirname, 'data_test_auth');
+  delete process.env.MATHDRILL_BACKEND;
+
+  const testDataDir = path.join(__dirname, 'data_test_auth');
+  if (!fs.existsSync(testDataDir)) fs.mkdirSync(testDataDir, { recursive: true });
   for (const f of ['users.json', 'sessions.json', 'mathdrill.db', 'mathdrill.db-shm', 'mathdrill.db-wal']) {
-    const fp = path.join(dataDir, f);
+    const fp = path.join(testDataDir, f);
     if (fs.existsSync(fp)) try { fs.unlinkSync(fp); } catch (e) {}
   }
   delete require.cache[require.resolve(SERVER_PATH)];
@@ -84,14 +87,14 @@ async function main() {
   });
   await test('T06 password hashed', async () => {
     // Backend-neutral: file backend -> users.json; sqlite backend -> mathdrill.db
-    const usersJsonPath = path.join(dataDir, 'users.json');
+    const usersJsonPath = path.join(testDataDir, 'users.json');
     let stored = null;
     if (fs.existsSync(usersJsonPath)) {
       const u = JSON.parse(fs.readFileSync(usersJsonPath, 'utf8'));
       stored = u.testuser.passwordHash;
     } else {
       const { DatabaseUserStore } = require(path.join('..', 'database'));
-      const db = new DatabaseUserStore({ filePath: path.join(dataDir, 'mathdrill.db') });
+      const db = new DatabaseUserStore({ filePath: path.join(testDataDir, 'mathdrill.db') });
       stored = db.findUser('testuser').passwordHash;
       db.close();
     }

@@ -71,8 +71,28 @@
         game.questionGen = {
           generate: function (grade, lessonId, diff, user) {
             try {
-              const q = qg.generate_question(grade, lessonId, diff, user);
+              /* P0 GUARD: `lesson_id` must be NUMERIC. It used to receive a lesson
+                 TITLE string ("Bài 1"), which made the generators fall through to
+                 their generic branch and emit `"Tính nhanh: Bài 1 - 1 = ?"` with
+                 correct_answer "NaN" — one repeated, unanswerable question. Reject
+                 non-numeric ids loudly instead of generating a broken question. */
+              var lid = parseInt(lessonId, 10);
+              if (!isFinite(lid) || lid <= 0) {
+                if (L) L.error('[Main] questionGen: invalid numeric lesson_id:', JSON.stringify(lessonId));
+                return null;
+              }
+              const q = qg.generate_question(grade, lid, diff, user);
               if (!q) return null;
+              /* P0 GUARD: the generated answer must be one of the rendered options,
+                 otherwise the player can never answer the question. */
+              var opts = (q.options || []).map(String);
+              var ans = String(q.correct_answer);
+              if (!opts.length || opts.indexOf(ans) < 0) {
+                if (L) L.error('[Main] questionGen: correct_answer not in options', {
+                  q: q.question_text, ans: q.correct_answer, options: q.options
+                });
+                return null;
+              }
               return {
                 question: q.question_text,
                 answer: q.correct_answer,

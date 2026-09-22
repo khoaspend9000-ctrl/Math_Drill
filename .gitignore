@@ -4,7 +4,95 @@ web/tests/helpers/_mt.err
 web/tests/helpers/_mt.out
 web/tests/helpers/__pycache__/
 _git_commit_*.py
-node_modules/
-.env
-server/data/*.json
+
+# Runtime data — NEVER commit
+server/data/users.json
+server/data/sessions.json
+server/data/*.db
+
+# Python runtime
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+*.egg
+
+# Logs
 *.log
+logs/
+
+# Build artifacts / distributions
+build/
+dist/
+*.rar
+*.zip
+*.tar.gz
+*.apk
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Environment / secrets
+.env
+.env.local
+*.env
+.env.*
+!/.env.example
+
+# Temporary files
+temp_*
+*_state.txt
+session.json
+user_data.json
+user_data.db
+accounts.json
+
+# Node
+node_modules/
+
+# Browser test artifacts
+web/tests/_fq*.log
+web/tests/_fqa*.log
+web/tests/_prod_*.log
+web/tests/_m4_*.log
+web/tests/_m5_*.log
+web/tests/_m6*_.log
+web/tests/_phase*.log
+web/tests/_sectmp.txt
+web/tests/_sectmp*.txt
+web/tests/_fqatmp.txt
+web/tests/_fqabtmp.txt
+web/tests/_p0out.txt
+
+# QA browser binaries (if any)
+playwright-core/
+
+# M10-QA2 temporary harness artifacts (never commit)
+web/tests/_*.txt
+web/tests/_*_run.txt
+web/tests/_*_err.txt
+web/tests/_*tmp*.txt
+_compare_*.js
+_fix_*.js
+_fix_*.py
+_m10qa2_*.py
+_verify_sync.py
+_deployment_analysis.py
+_manifest_*.csv
+_*.csv
+
+# Root-level scratch (QA/sync helpers + their dumps — never commit)
+/_*.js
+/_*.py
+/_*.txt
+

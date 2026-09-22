@@ -146,6 +146,26 @@ class UserStore {
     return { ok: true };
   }
 
+  // ===== M10-B: player progress persistence (same interface as DatabaseUserStore) =====
+  // The player blob lives in the user record's `data` field (non-secret game
+  // state only). No password/session material is ever stored here.
+  getUserData(username) {
+    const user = this.findUser(username);
+    if (!user) return null;
+    return (user.data && typeof user.data === 'object') ? user.data : null;
+  }
+
+  setUserData(username, data) {
+    const user = this.findUser(username);
+    if (!user) return { ok: false, error: 'AUTH_REQUIRED' };
+    if (!data || typeof data !== 'object' || Array.isArray(data)) {
+      return { ok: false, error: 'INVALID_INPUT' };
+    }
+    user.data = data;
+    this._save();
+    return { ok: true };
+  }
+
   _save() {
     try {
       const dir = path.dirname(this.filePath);
