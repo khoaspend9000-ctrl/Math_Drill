@@ -741,3 +741,35 @@ MASTER_SHA256: placeholder — actual hash computed at checkpoint finalize
 - ASSET_MANIFEST_SHA256: 7e690464f08c834bcdab9987db60563f5475822d86ede62647d5fe6b086385e8
 - PYTHON_SOURCE_GUARD files: 23 (*.py at repo root)
 - PYTHON_SOURCE_GUARD_SHA256: e6024127fe8f1dc5e68c3b91f7cb64d1ebd225b5bf6fb17cc534fb7e1566fe93
+
+## polish-m2-menu-dashboard-theory
+- date: 2026-09-16
+- parent: polish-m1-ui-fixes
+- Milestone: POLISH M2 (Menu Dashboard + Theory) FINAL GATE = PASS
+- Scope đóng gate:
+  - backround1.jpg: copy byte-identical từ root sang web/assets (SHA trùng khớp source, không rename/convert)
+  - TheoryState: class hoàn chỉnh trong states_real.js (title/book 50,50,1200,700 khớp RealisticBook Python, page bounds, prev/next, scroll clamp, buttons conditional)
+  - Menu dashboard: avatar/greeting/level/grade/XP/gold/pet/achievement/difficulty/streak/daily tasks; layout trái/phải RealisticBook không overlap/overflow (kiểm qua m10b_states_menu + polish suites)
+- Fixes trong gate này:
+  - T02 m10b_state_integration: test-harness bug — clickCard(states,…) tham chiếu bare 'states' undefined → đổi param thành managerObj (fix harness, KHÔNG nới assertion)
+  - T03 m10b_state_integration: production bug — ShopState._actItem pet purchase không chọn pet mới → thêm d.pet.type = key sau purchase ok (đúng parity Python: mua pet xong được chọn)
+  - T05 m10b_state_integration: test data bug — 'pen_wood' không tồn tại trong data/skins.json → dùng 'pen_magic' (key thực tế)
+  - m10a_browser_load T06: pre-existing harness bug LEGACY undefined → NOT_LOADED
+- Tests (mỗi suite tối thiểu 5 lần chạy, tất cả PASS/exit=0):
+  - polish_m2 12/12 ×5 · m2_polish 14/14 ×5 · ui_parity 20/20 ×5 · m8c_ui 18/18 ×5
+  - m10a_browser_load 16/16 ×5 · m10b_states_menu 44/44 ×5 · m10b_state_integration 5/5 ×5 (đã fix T02–T05)
+  - m10c_auth_frontend 22/22 ×5 · m10d_admin 11/11 ×5 · phase1_foundation 10/10 ×5 · m7c_lesson 11/11 ×5
+- Full regression (web + server, 21 suites, TOTAL_FAILED_SUITES=0):
+  - admin_rbac 16/16 · m4 15/15 · m5 10/10 · m6 11/11 · m6b_mt19937 12/12 · m6b_safety_guard 9/9 ·
+    m6b_vectors 1/1 · m7a 25/25 · m7b 16/16 · m7d 14/14 · m8a 20/20 · m8b 14/14 · m8d 10/10 ·
+    m9a 18/18 · m9b 23/23 · m9c 14/14 · m9d 18/18 · m9e 23/23 · m9f 28/28 · m9_final 10/10 · perf_stress 16/16
+- Python Desktop: KHÔNG thay đổi (verified qua mtime — .py mới nhất chỉ là audit helper có từ trước task)
+- Browser: BROWSER VALIDATION UNAVAILABLE (no automation) — visual parity menu/theory chỉ được xác nhận bằng structural test, KHÔNG suy ra visual PASS
+- Files changed: {
+  "web/js/states_real.js": "6ac71af5ce23c9c51103212b18230d0477214ea51e4081ca8745bb1ead3e85b6",
+  "web/tests/m10b_state_integration.test.js": "0a6e286886ff55652353098b68064df1133d08bfa7f3d5abe3ba86a519d1c133",
+  "web/tests/m10a_browser_load.test.js": "08716f880a98659fe3578f53b1efcee6762e7af0f8b03f9ac510464fd92636e6",
+  "web/assets/backround1.jpg": "3e4a71980b2df5564fb96f5aa32ccd2fdff5de92da4559adb0d2f70181a02e1a"
+}
+- Manifest method: MASTER_SHA256 = sha256 của các dòng "path:sha256\n" sort theo path
+- MASTER_SHA256: f0066c0e3785576a7068cbf1e1f544876e5525511bd8dadd6dc829c585400802
