@@ -11,7 +11,7 @@ function check(name, fn) {
   try { fn(); pass++; console.log('PASS  ' + name); }
   catch (e) { failed++; console.error('FAIL  ' + name + ' :: ' + (e && e.message)); }
 }
-function mk(base) { return new SoundManager(base || './'); }
+function mk(base) { return new SoundManager(base || path.join(ROOT, 'web', 'audio')); }
 const ROOT = path.join(__dirname, '..', '..');
 check('T01 init defaults bgm0.3 sfx0.7', function () {
   const m = mk();

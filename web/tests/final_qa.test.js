@@ -93,8 +93,8 @@ function freshData(over) {
 const click = (x, y) => ({ consumeClick: () => ({ x: x, y: y }), consumeWheel: () => null, consumePressedKey: () => null });
 
 /* T01 — registry completeness: main.js registers exactly the shipped states */
-check('FQA-T01 main.js registers all 19 shipped states', function () {
-  assert.strictEqual(REGISTERED.length, 19, 'registered=' + REGISTERED.length);
+check('FQA-T01 main.js registers all 20 shipped states', function () {
+  assert.strictEqual(REGISTERED.length, 20, 'registered=' + REGISTERED.length + ' (incl RegisterState)');
   for (const k of Object.keys(REGISTRY)) {
     assert.ok(REGISTERED.indexOf(k) >= 0, 'missing registration: ' + k);
   }

@@ -6,9 +6,17 @@
   try { if (typeof require === 'function') { fs = require('fs'); pathMod = require('path'); } } catch (_) {}
 
   var DEFAULT_DATA = {
+    /* M11 fix: fallback definitions must mirror the shipped
+       web/data/achievements.json exactly (9 ids). The old fallback
+       missed speed_demon / time_attack_50 / time_attack_100 / combo_x4,
+       which made T15/T18 unlock checks fail when no dataPath is given. */
     streak_5: { name: 'Chuoi 5!', desc: '5 dung lien tiep', icon: '🔥', xp: 50 },
     streak_10: { name: 'Chuoi 10!', desc: '10 dung lien tiep', icon: '💎', xp: 150 },
+    speed_demon: { name: 'Nhanh nhu chop', desc: 'Tra loi dung trong 2 giay', icon: '⚡', xp: 30 },
     perfect_lesson: { name: 'Hoan hao!', desc: 'Khong sai cau nao', icon: '⭐', xp: 200 },
+    time_attack_50: { name: 'Toc do 50', desc: 'Dat 50+ diem trong Time Attack', icon: '⏱️', xp: 100 },
+    time_attack_100: { name: 'Toc do 100', desc: 'Dat 100+ diem trong Time Attack', icon: '🏆', xp: 250 },
+    combo_x4: { name: 'Combo x4!', desc: 'Dat combo x4 trong Time Attack', icon: '🎯', xp: 80 },
     first_win: { name: 'Chien thang dau tien', desc: 'Hoan thanh bai hoc dau', icon: '🎉', xp: 30 },
     math_master: { name: 'Bac thay toan', desc: '100 cau dung tong', icon: '🧠', xp: 300 }
   };

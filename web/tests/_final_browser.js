@@ -276,12 +276,26 @@ async function ready(page, ms) { await page.waitForTimeout(ms || 650); }
     const typed = { u: await field('u'), p: await field('p'), f: await field('a') };
     t('A06 click on field switches active field', typed.f === 'pass');
 
-    // register button is a designed M10 placeholder → info message, no transition
+    // M11: regBtn now opens the real Desktop-parity RegisterState (main.py RegisterState).
     await clickCenter(page, regBtn);
-    await ready(page);
-    const regInfo = await page.evaluate(function () { return window.Game.states.states.login.infoMsg; });
-    t('A07 register placeholder shows info msg (no crash/no transition)',
-      typeof regInfo === 'string' && regInfo.length > 5 && (await cur(page)) === 'login');
+    const okReg = await waitName(page, 'register', 6000);
+    t('A07 register button opens the RegisterState (Desktop parity)',
+      okReg && (await cur(page)) === 'register');
+
+    // Register back button (450,590,400x70) returns to login — same as Desktop.
+    await clickCenter(page, { x: 450, y: 590, w: 400, h: 70 });
+    const backLogin = await waitName(page, 'login', 6000);
+    await waitIdle(page, 4000);   // fade still swallows input until fully done
+
+    // Returning to login resets the fields (Desktop prefill='' on re-entry) — retype.
+    await clickCenter(page, userRect);
+    await page.waitForTimeout(60);
+    await page.keyboard.type(USER, { delay: 8 });
+    await clickCenter(page, passRect);
+    await page.waitForTimeout(60);
+    await page.keyboard.type(PASS, { delay: 8 });
+    t('A07b register back returns to login with fields retyped',
+      backLogin && (await field('u')) === USER && (await field('p')) === PASS);
 
     await clickCenter(page, loginBtn);
     const okMenu = await waitName(page, 'menu', 8000);

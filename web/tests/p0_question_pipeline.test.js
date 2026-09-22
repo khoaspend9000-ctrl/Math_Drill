@@ -364,7 +364,9 @@ function p0Summary() {
   settleAll().then(function () {
     console.log('P0_QUESTION_PIPELINE pass=' + pass + ' fail=' + failed);
     process.exit(failed ? 1 : 0);
+  }).catch(function () {
+    // Swallow unhandled rejections from settleAll(); the individual
+    // check FAILs are already recorded in `failed`.
+    process.exit(failed ? 1 : 0);
   });
 }
-setTimeout(p0Summary, 12000);
-

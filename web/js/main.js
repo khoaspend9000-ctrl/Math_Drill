@@ -19,6 +19,7 @@
   // M4 — real game states (states_real.js)
   const LoadingState = window.LoadingState;
   const LoginState = window.LoginState;
+  const RegisterState = window.RegisterState; // M11 Desktop parity
   const MenuState = window.MenuState;
   const LessonSelectState = window.LessonSelectState;
   const LessonState = window.LessonState;
@@ -128,6 +129,9 @@
 
       game.states.register('loading', new LoadingState());
       game.states.register('login', new LoginState());
+      if (typeof RegisterState === 'function') {
+        game.states.register('register', new RegisterState());
+      }
       game.states.register('menu', new MenuState());
       game.states.register('lesson_select', new LessonSelectState());
       game.states.register('theory', new TheoryState());

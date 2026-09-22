@@ -284,8 +284,159 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
     }
   }
 
-  // =========================================================
-  // LOGIN STATE  (main.py:183-251)
+  // REGISTER STATE (main.py:RegisterState) — M11 Desktop parity port.
+  class RegisterState extends BaseState {
+    constructor() {
+      super('register');
+      this.userInput = '';
+      this.passInput = '';
+      this.activeField = 'user';
+      this.selectedGrade = 1;
+      this.msg = '';
+      this.msgTimer = 0;
+      this.msgOk = false;
+      this.userRect = { x: 450, y: 280, w: 400, h: 50 };
+      this.passRect = { x: 450, y: 350, w: 400, h: 50 };
+      this.gradeBtns = [];
+      for (let i = 1; i <= 5; i++) {
+        this.gradeBtns.push({ grade: i, x: 450 + (i - 1) * 90, y: 420, w: 80, h: 50 });
+      }
+      this.createBtn = { x: 450, y: 500, w: 400, h: 70 };
+      this.backBtn = { x: 450, y: 590, w: 400, h: 70 };
+    }
+    enter() {
+      this.userInput = '';
+      this.passInput = '';
+      this.activeField = 'user';
+      this.selectedGrade = 1;
+      this.msg = '';
+      this.msgTimer = 0;
+      this.msgOk = false;
+      L.info('[Register] enter');
+    }
+    exit() {}
+    _onCreate() {
+      const username = this.userInput.trim();
+      const password = this.passInput.trim();
+      const self = this;
+      if (!username || !password) {
+        this.msg = 'Vui lòng nhập đầy đủ thông tin!';
+        this.msgTimer = 3.0;
+        this.msgOk = false;
+        return;
+      }
+      const auth = global.Game && global.Game.auth;
+      if (auth && typeof auth.register === 'function') {
+        auth.register(username, password, this.selectedGrade).then(function (res) {
+          if (res.ok) {
+            L.info('[Register] OK → login');
+            global.Game.states.change('login', { prefill: username }, 'fade');
+          } else {
+            self.msg = res.msg || 'Đăng ký thất bại';
+            self.msgTimer = 3.0;
+            self.msgOk = false;
+          }
+        }).catch(function (err) {
+          L.error('[Register] error', err);
+          self.msg = 'Lỗi đăng ký — thử lại';
+          self.msgTimer = 3.0;
+          self.msgOk = false;
+        });
+      } else {
+        this.msg = 'Hệ thống tài khoản chưa sẵn sàng';
+        this.msgTimer = 3.0;
+        this.msgOk = false;
+      }
+    }
+    handleInput(input, dt) {
+      const click = input.consumeClick ? input.consumeClick() : null;
+      if (click) {
+        if (hit(click, this.userRect.x, this.userRect.y, this.userRect.w, this.userRect.h)) {
+          this.activeField = 'user';
+        } else if (hit(click, this.passRect.x, this.passRect.y, this.passRect.w, this.passRect.h)) {
+          this.activeField = 'pass';
+        } else {
+          let gHit = false;
+          for (let i = 0; i < this.gradeBtns.length; i++) {
+            const g = this.gradeBtns[i];
+            if (hit(click, g.x, g.y, g.w, g.h)) { this.selectedGrade = g.grade; gHit = true; break; }
+          }
+          if (!gHit) {
+            if (hit(click, this.createBtn.x, this.createBtn.y, this.createBtn.w, this.createBtn.h)) {
+              this._onCreate();
+            } else if (hit(click, this.backBtn.x, this.backBtn.y, this.backBtn.w, this.backBtn.h)) {
+              global.Game.states.change('login', { prefill: '' }, 'fade');
+            }
+          }
+        }
+      }
+      const key = input.consumePressedKey ? input.consumePressedKey() : null;
+      if (key) {
+        const k = key.key;
+        if (k === 'Backspace') {
+          if (this.activeField === 'user') this.userInput = this.userInput.slice(0, -1);
+          else this.passInput = this.passInput.slice(0, -1);
+        } else if (k === 'Tab') {
+          this.activeField = (this.activeField === 'user') ? 'pass' : 'user';
+        } else if (k === 'Enter' || k === 'NumpadEnter') {
+          this._onCreate();
+        } else if (k && k.length === 1) {
+          const cur = (this.activeField === 'user') ? this.userInput : this.passInput;
+          if (cur.length < 20) {
+            if (this.activeField === 'user') this.userInput += k;
+            else this.passInput += k;
+          }
+        }
+      }
+    }
+    update(dt) {
+      if (this.msgTimer > 0) this.msgTimer = Math.max(0, this.msgTimer - dt);
+    }
+    draw(ctx, W2, H2) {
+      const R = global.Game.renderer;
+      R.clear('#1e2840');
+      const ch = global.Game.assets && global.Game.assets.get('main_character');
+      if (ch && !ch.placeholder) R.image(ch, 50, 250, 400, 400);
+      R.text('Đăng Ký', 450, 200, {
+        font: 'bold 40px Quicksand, sans-serif', fill: '#ffffff', baseline: 'middle'
+      });
+      this._regField(R, this.userRect, this.userInput, 'user', 'Tên đăng nhập', false);
+      this._regField(R, this.passRect, this.passInput, 'pass', 'Mật khẩu', true);
+      R.text('Chọn lớp:', 450, 390, {
+        font: '20px Quicksand, sans-serif', fill: '#ffffff', baseline: 'middle'
+      });
+      for (let i = 0; i < this.gradeBtns.length; i++) {
+        const g = this.gradeBtns[i];
+        drawBtn(R, g.x, g.y, g.w, g.h, 'Lớp ' + g.grade,
+          g.grade === this.selectedGrade ? PURPLE_BTN : ORANGE_BTN, { fontSize: 14 });
+      }
+      drawBtn(R, this.createBtn.x, this.createBtn.y, this.createBtn.w, this.createBtn.h,
+        'TẠO TÀI KHOẢN', GREEN_BTN);
+      drawBtn(R, this.backBtn.x, this.backBtn.y, this.backBtn.w, this.backBtn.h,
+        'QUAY LẠI', RED_BTN);
+      if (this.msgTimer > 0 && this.msg) {
+        R.text(this.msg, 650, 690, {
+          font: '20px Quicksand, sans-serif',
+          fill: this.msgOk ? '#4ade80' : '#ff8a8a',
+          align: 'center', baseline: 'middle'
+        });
+      }
+    }
+    _regField(R, rect, value, fieldKey, placeholder, isPassword) {
+      R.fillRoundRect(rect.x, rect.y, rect.w, rect.h, 10, 'rgb(220,220,220)', null, 0);
+      if (this.activeField === fieldKey) {
+        R.fillRoundRect(rect.x, rect.y, rect.w, rect.h, 10, 'rgba(0,0,0,0)', 'rgb(150,150,150)', 2);
+      }
+      const display = isPassword ? new Array(value.length + 1).join('*') : value;
+      const empty = value.length === 0;
+      R.text(display || placeholder, rect.x + 15, rect.y + rect.h / 2, {
+        font: '20px Quicksand, sans-serif',
+        fill: empty ? '#aaaaaa' : '#505050',
+        baseline: 'middle'
+      });
+    }
+  }
+  // LOGIN STATE below (main.py:183-251)
   // M4: chưa có AccountSystem (M5) — login tạo profile stub.
   // =========================================================
   class LoginState extends BaseState {
@@ -385,9 +536,8 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
         } else if (hit(click, this.loginBtn.x, this.loginBtn.y, this.loginBtn.w, this.loginBtn.h)) {
           this._onLogin();
         } else if (hit(click, this.regBtn.x, this.regBtn.y, this.regBtn.w, this.regBtn.h)) {
-          // M5: API auth.register đã sẵn sàng; UI RegisterState port ở M10
-          this.infoMsg = 'Màn hình đăng ký sẽ có ở M10 (API auth đã sẵn sàng M5) 📝';
-          this.infoTimer = 3.0;
+          // M11: Desktop RegisterState ported — open the real register screen.
+          global.Game.states.change('register', null, 'fade');
         }
       }
       const key = input.consumePressedKey ? input.consumePressedKey() : null;
@@ -2821,6 +2971,7 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
   // ---- Exports (global cho browser, module.exports cho Node test) ----
   global.LoadingState = LoadingState;
   global.LoginState = LoginState;
+  global.RegisterState = RegisterState;
   global.MenuState = MenuState;
   global.LessonSelectState = LessonSelectState;
   global.TheoryState = TheoryState;
@@ -2843,6 +2994,7 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
     module.exports = {
       LoadingState: LoadingState,
       LoginState: LoginState,
+      RegisterState: RegisterState,
       MenuState: MenuState,
       LessonSelectState: LessonSelectState,
       TheoryState: TheoryState,
