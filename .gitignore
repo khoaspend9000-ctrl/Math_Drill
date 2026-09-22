@@ -62,6 +62,8 @@ node_modules/
 
 # Browser test artifacts
 web/tests/_fq*.log
+web/tests/_final_menu_*.png
+web/tests/_*.png
 web/tests/_fqa*.log
 web/tests/_prod_*.log
 web/tests/_m4_*.log
