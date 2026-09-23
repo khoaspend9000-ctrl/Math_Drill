@@ -14,6 +14,7 @@ test_suites = [
     'polish_m2.test.js','polish_m3.test.js','polish_m4.test.js',
     'phase1_foundation.test.js','performance_stress.test.js','book_runtime_probe.test.js',
     'm10qa2_exp_persistence.test.js','m10qa2_data_asset_audit.test.js',
+    'm12_clover_book.test.js',
 ]
 
 def first(pattern, text, flags=0):

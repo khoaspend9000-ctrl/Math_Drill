@@ -70,6 +70,40 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
     return click.x >= x && click.x <= x + w && click.y >= y && click.y <= y + h;
   }
 
+  /* ---- Desktop parity: continuous clover rain (M12) ----------------------
+     game_init.py FallingCloverEffect.__init__ pre-allocates `num_clovers`
+     CloverParticle instances and every CloverParticle.reset() scatters itself
+     across [0, WIDTH] x [-HEIGHT, 0]; CloverParticle.update() calls reset()
+     again once the clover falls past HEIGHT. The Desktop effect is therefore a
+     *continuous* rain that never needs an explicit spawn.
+     The Web port (effects2.js FallingClover) is instead a burst pool: its
+     particles array starts empty and nothing is rendered until spawn() seeds
+     it, so a state must drive the seeding itself. Seeding up to the Desktop
+     cap each frame reproduces the Desktop behaviour (and stays inside the pool
+     cap the effect was constructed with). */
+  function cloverRain(effect, cap) {
+    if (!effect || typeof effect.spawn !== 'function') return 0;
+    const have = (typeof effect.count === 'number')
+      ? effect.count
+      : (Array.isArray(effect.particles) ? effect.particles.length : 0);
+    let seeded = 0;
+    for (let i = have; i < cap; i++) {
+      effect.spawn(Math.random() * W, -Math.random() * H);
+      seeded++;
+    }
+    return seeded;
+  }
+
+  /* Paint the clover pool (Desktop FallingCloverEffect.draw(surface)).
+     The Web pool draws straight to the 2D context, so resolve it from the
+     Renderer and never let a draw failure break the state. */
+  function drawClover(R, effect) {
+    if (!effect || typeof effect.draw !== 'function') return;
+    const c = (R && R.ctx) ? R.ctx : R;
+    if (!c || typeof c.save !== 'function') return;
+    try { effect.draw(c); } catch (e) { /* never break a state draw */ }
+  }
+
   /* Word-wrap cho question card — parity draw_multiline_text (game_init.py).
      Dùng ctx.measureText với font hiện hành; trả về tối đa maxLines dòng. */
   function wrapText(R, text, maxWidth, font, maxLines) {
@@ -621,7 +655,8 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
       super('menu');
       this.time = 0;
       this.fadeIn = 0;
-      this.cloverEffect = global.FallingClover ? new global.FallingClover() : null;
+      // Desktop main.py:422 — MenuState clover layer is FallingCloverEffect(20).
+      this.cloverEffect = global.FallingClover ? new global.FallingClover(20) : null;
       this.examMsg = '';
       this.examMsgTimer = 0;
       const card_y1 = 155, card_w = 240, card_h = 90, gap = 25, x = 680;
@@ -753,19 +788,26 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
       this.time += dt;
       this.fadeIn = Math.min(1, this.fadeIn + dt * 2.5);
       if (this.examMsgTimer > 0) this.examMsgTimer = Math.max(0, this.examMsgTimer - dt);
+      // Desktop main.py:228 — clover_effect.update(dt) drives the rain layer.
+      if (this.cloverEffect) {
+        cloverRain(this.cloverEffect, 20);
+        if (typeof this.cloverEffect.update === 'function') this.cloverEffect.update(dt);
+      }
     }
 
     draw(ctx, W2, H2) {
       const R = global.Game.renderer;
       const p = getPlayer();
-      // Book frame (Desktop parity: main.py MenuState.book 50,50,1200,700)
-      R.fillRoundRect(50, 50, 1200, 700, 15, '#503214');
-      R.fillRoundRect(58, 58, 1184, 684, 12, '#654321');
-      R.fillRoundRect(600, 50, 10, 700, 5, '#969696');
-      R.fillRoundRect(64, 225, 586, 350, 10, '#fdf6e3');
-      R.fillRoundRect(664, 225, 586, 350, 10, '#fdf6e3');
       R.clear('#192341');
       R.fillRoundRect(0, 0, W2, H2, 0, 'rgba(25,35,65,1)', null, 0);
+      /* Book chrome (Desktop main.py:745 RealisticBook(50,50,1200,700)) is painted
+         by the REALISTICBOOK_P1 integration, which hooks Renderer.clear() and emits
+         the chrome right after this clear. NOTE: the dashboard backdrop above is an
+         opaque dark wash (Desktop main.py draws its Menu content *inside* the cream
+         pages instead), so the chrome stays behind the panels on purpose — forcing
+         the cream pages forward here would put near-white text at ~2:1 contrast. */
+      // Clover layer — Desktop main.py:743 draws it before the book (background layer).
+      drawClover(R, this.cloverEffect);
       R.text('MATHDRILL', W2 / 2, 46, {
         font: 'bold 34px Quicksand, sans-serif', fill: '#e0ecff', align: 'center', baseline: 'middle'
       });
@@ -790,12 +832,6 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
         R.text(this.examMsg, W2 / 2, 745, {
           font: '20px Quicksand, sans-serif', fill: '#c85050', align: 'center', baseline: 'middle'
         });
-      }
-      // FallingClover effect (Desktop parity)
-      if (this.cloverEffect && typeof this.cloverEffect.update === 'function') this.cloverEffect.update(0.016);
-      if (this.cloverEffect && typeof this.cloverEffect.draw === 'function') {
-        const cvs = R.ctx || R;
-        if (cvs && typeof cvs.save === 'function') this.cloverEffect.draw(cvs);
       }
     }
 
@@ -990,13 +1026,13 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
 
     draw(ctx, W2, H2) {
       const R = global.Game.renderer;
-      // Book frame (Desktop parity: main.py LessonSelectState.book 50,50,1200,700)
-      R.fillRoundRect(50, 50, 1200, 700, 15, '#503214');
-      R.fillRoundRect(58, 58, 1184, 684, 12, '#654321');
-      R.fillRoundRect(600, 50, 10, 700, 5, '#969696');
-      R.fillRoundRect(64, 64, 586, 336, 10, '#fdf6e3');
-      R.fillRoundRect(664, 64, 586, 336, 10, '#fdf6e3');
       R.clear('#a5d6a7');
+      /* Book chrome: Desktop main.py:2084 (LessonSelectState) fills the green
+         background and *then* draws RealisticBook(50,50,1200,700) — the same order
+         the REALISTICBOOK_P1 integration reproduces by hooking this clear. The raw
+         frame that used to sit here was painted before the clear, so Renderer.clear()
+         (a full-canvas fillRect) erased it every frame; the chrome now comes from
+         UI.RealisticBook, which also carries the Desktop page geometry. */
       R.text('KHỐI LỚP ' + this.grade, W2 / 2, 80, {
         font: 'bold 40px Quicksand, sans-serif', fill: '#20242e', align: 'center', baseline: 'middle'
       });
@@ -1512,7 +1548,8 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
       this.goldEarned = 0;
       this.continueBtn = { x: W / 2 - 125, y: H - 120, w: 250, h: 60 };
       this.reviewBtn = { x: W / 2 - 125, y: H - 200, w: 250, h: 60 };
-      this.cloverEffect = global.FallingClover ? new global.FallingClover() : null;
+      // Desktop main.py:1091 — VictoryState clover layer is FallingCloverEffect(15).
+      this.cloverEffect = global.FallingClover ? new global.FallingClover(15) : null;
     }
 
         async enter(params) {
@@ -1566,12 +1603,19 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
         this.xpCurrent = Math.min(this.xpEarned, this.xpCurrent + dt * 50);
         if (this.xpCurrent >= this.xpEarned) this.xpAnimDone = true;
       }
+      // Desktop main.py:1150 — VictoryState.update drives clover_effect.update(dt).
+      if (this.cloverEffect) {
+        cloverRain(this.cloverEffect, 15);
+        if (typeof this.cloverEffect.update === 'function') this.cloverEffect.update(dt);
+      }
     }
 
     draw(ctx, W2, H2) {
       const R = global.Game.renderer;
       R.clear('#1e5030');
       R.fillRoundRect(0, 0, W2, H2, 0, 'rgba(30,80,45,1)', null, 0);
+      // Desktop main.py:1163 — clover layer is drawn before the victory UI.
+      drawClover(R, this.cloverEffect);
       R.text('🏆 HOÀN THÀNH BÀI HỌC 🏆', W2 / 2, 140, {
         font: 'bold 48px Quicksand, sans-serif', fill: '#d7f7df', align: 'center', baseline: 'middle'
       });
@@ -1607,12 +1651,6 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
         '🧐 XEM LỖI', ORANGE_BTN, { fontSize: 18 });
       drawBtn(R, this.continueBtn.x, this.continueBtn.y, this.continueBtn.w, this.continueBtn.h,
         '➡️ TIẾP TỤC', GREEN_BTN, { fontSize: 18 });
-      // FallingClover effect (Desktop parity: main.py VictoryState.clover_effect)
-      if (this.cloverEffect && typeof this.cloverEffect.update === 'function') this.cloverEffect.update(0.016);
-      if (this.cloverEffect && typeof this.cloverEffect.draw === 'function') {
-        const cvs = R.ctx || R;
-        if (cvs && typeof cvs.save === 'function') this.cloverEffect.draw(cvs);
-      }
     }
 
     _xpBar(R, x, y, w, h, cur, need, label) {
@@ -1642,7 +1680,8 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
       this.retryBtn  = { x: W / 2 - 260, y: H - 120, w: 250, h: 60 };
       this.homeBtn   = { x: W / 2 + 10, y: H - 120, w: 250, h: 60 };
       this.reviewBtn = { x: W / 2 - 125, y: H - 200, w: 250, h: 60 };
-      this.cloverEffect = global.FallingClover ? new global.FallingClover() : null;
+      // Desktop main.py:1020 — DefeatState clover layer is FallingCloverEffect(15).
+      this.cloverEffect = global.FallingClover ? new global.FallingClover(15) : null;
     }
 
         async enter(params) {
@@ -1690,12 +1729,20 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
     update(dt) {
       this.timer += dt;
       if (this.timer > 0.5) this.showUi = true;
+      // Desktop main.py:1043 — DefeatState.update drives clover_effect.update(dt).
+      if (this.cloverEffect) {
+        cloverRain(this.cloverEffect, 15);
+        if (typeof this.cloverEffect.update === 'function') this.cloverEffect.update(dt);
+      }
     }
 
     draw(ctx, W2, H2) {
       const R = global.Game.renderer;
       R.clear('#1e2337');
       R.fillRoundRect(0, 0, W2, H2, 0, 'rgba(30,35,55,1)', null, 0);
+      // Desktop main.py:1051 — clover layer sits after the dark overlay and
+      // before the panel/UI.
+      drawClover(R, this.cloverEffect);
       R.text('CỐ LÊN NÀO! 💪', W2 / 2, 140, {
         font: 'bold 40px Quicksand, sans-serif', fill: '#ffd9a0', align: 'center', baseline: 'middle'
       });
@@ -1725,12 +1772,6 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
         '🔄 LÀM LẠI', ORANGE_BTN, { fontSize: 16 });
       drawBtn(R, this.homeBtn.x, this.homeBtn.y, this.homeBtn.w, this.homeBtn.h,
         '🏠 VỀ MENU', RED_BTN, { fontSize: 16 });
-      // FallingClover effect (Desktop parity: main.py DefeatState.clover_effect)
-      if (this.cloverEffect && typeof this.cloverEffect.update === 'function') this.cloverEffect.update(0.016);
-      if (this.cloverEffect && typeof this.cloverEffect.draw === 'function') {
-        const cvs = R.ctx || R;
-        if (cvs && typeof cvs.save === 'function') this.cloverEffect.draw(cvs);
-      }
     }
   }
 
@@ -3077,8 +3118,16 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
   }
   if (!RB) return; // guard: class unavailable, integration no-ops
 
+  /* Desktop book geometry: every Desktop state that owns a book constructs
+     RealisticBook(50, 50, 1200, 700) — Menu main.py:416, Settings :754,
+     PasswordChange :876, LessonSelect :924, Theory :979, AchievementView :1929,
+     Daily :2004, Profile :2132, Shop :2275, SkillTree :2479. UI.RealisticBook
+     defaults to (150,100,1000,600), which silently shrank and re-centred the
+     chrome for Menu/LessonSelect, so the Desktop rect is passed explicitly here.
+     States that build their own book (TheoryState) are left untouched. */
+  var BOOK_RECT = { x: 50, y: 50, w: 1200, h: 700 };
   function _bookEnter(state, makePageApi) {
-    if (!state._rbBook) { try { state._rbBook = new RB(); } catch (e) { state._rbBook = null; } }
+    if (!state._rbBook) { try { state._rbBook = new RB([], BOOK_RECT); } catch (e) { state._rbBook = null; } }
     if (state._rbBook && typeof state._rbBook.reset === 'function') state._rbBook.reset();
     if (state._rbBook && typeof makePageApi === 'function') {
       try { makePageApi(state._rbBook, _renderer); } catch (e) { /* never break book init */ }
@@ -3097,6 +3146,9 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
      painted before the state's draw() is erased. To reproduce the Desktop order we
      paint the chrome immediately AFTER the state's background clear and BEFORE its
      content, by intercepting clear() for the duration of that draw() call.
+     drawFn MUST be the wrapped state draw: the hook only survives while drawFn
+     runs, so calling this without a callback restores R.clear() first and the
+     state's own clear() erases the chrome again.
      Chrome is painted unconditionally (Desktop has no "has pages" condition): the
      `pages` array is only the legacy label list used when no page callbacks exist. */
   function _bookDrawBase(state, drawFn) {
@@ -3136,8 +3188,13 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
     };
     var mDraw = MenuState.prototype.draw;
     MenuState.prototype.draw = function (ctx) {
-      _bookDrawBase(this);
-      if (mDraw) mDraw.apply(this, arguments);
+      /* The state's own draw must run INSIDE _bookDrawBase so the Renderer.clear
+         hook is still installed while it runs. Calling _bookDrawBase(this) with no
+         callback painted the chrome first and restored R.clear before the state
+         drew, so the state's own clear erased it again — the P1 book chrome was
+         invisible on every screen that used this wrapper. */
+      var self = this, args = arguments;
+      _bookDrawBase(this, function () { if (mDraw) mDraw.apply(self, args); });
     };
   }
 
@@ -3150,8 +3207,8 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
     };
     var lDraw = LessonSelectState.prototype.draw;
     LessonSelectState.prototype.draw = function (ctx) {
-      _bookDrawBase(this);
-      if (lDraw) lDraw.apply(this, arguments);
+      var self = this, args = arguments;
+      _bookDrawBase(this, function () { if (lDraw) lDraw.apply(self, args); });
     };
     var lUpdate = LessonSelectState.prototype.update;
     LessonSelectState.prototype.update = function (dt) {
@@ -3168,8 +3225,8 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
   if (typeof TheoryState !== 'undefined' && TheoryState.prototype) {
     var tDraw = TheoryState.prototype.draw;
     TheoryState.prototype.draw = function (ctx) {
-      _bookDrawBase(this);
-      if (tDraw) tDraw.apply(this, arguments);
+      var self = this, args = arguments;
+      _bookDrawBase(this, function () { if (tDraw) tDraw.apply(self, args); });
     };
     var tUpdate = TheoryState.prototype.update;
     TheoryState.prototype.update = function (dt) {

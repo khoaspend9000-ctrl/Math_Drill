@@ -773,3 +773,44 @@ MASTER_SHA256: placeholder — actual hash computed at checkpoint finalize
 }
 - Manifest method: MASTER_SHA256 = sha256 của các dòng "path:sha256\n" sort theo path
 - MASTER_SHA256: f0066c0e3785576a7068cbf1e1f544876e5525511bd8dadd6dc829c585400802
+
+## M12 — product evolution / post-release hardening
+- date: 2026-09-24
+- parent: 74eccaf (M12 RC) on release baseline 9f8b9b4
+- Gate: M12 FIX GATE = PASS — the M12 RC UI-parity features were silent no-ops; they now render.
+- Bugs found, reproduced first, then fixed (each has a regression test):
+  - B1 MenuState.draw / LessonSelectState.draw painted a hand-rolled RealisticBook frame BEFORE
+    R.clear(); Renderer.clear() is a full-canvas fillRect (web/js/renderer.js:20-27) so the frame was
+    erased on the same frame. Removed (dead code); the chrome comes from UI.RealisticBook only.
+  - B2 REALISTICBOOK_P1 integration called _bookDrawBase(state) WITHOUT the state draw callback, so
+    R.clear was restored before the state ran and the state's own clear erased the chrome — the P1
+    book identity was invisible on Menu / LessonSelect / Theory. Fixed: the state draw now runs inside
+    the clear hook (drawFn must be supplied).
+  - B3 The P1 book was built with UI.RealisticBook's default rect (150,100,1000,600) instead of the
+    Desktop RealisticBook(50,50,1200,700) used by every Desktop book state
+    (main.py 416 Menu, 754 Settings, 876 PasswordChange, 924 LessonSelect, 979 Theory, 1929
+    AchievementView, 2004 Daily, 2132 Profile, 2275 Shop, 2479 SkillTree). Fixed via BOOK_RECT.
+  - B4 effects2.js FallingClover is a BURST pool (particles empty until spawn()); the RC called
+    update()/draw() on an empty pool so Menu/Victory/Defeat had no clover layer. Desktop
+    FallingCloverEffect pre-allocates + recycles CloverParticle objects (game_init.py:4208-4236),
+    i.e. an always-on rain. Added cloverRain() + drawClover() with the Desktop caps
+    (Menu 20 = main.py:422, Victory 15 = main.py:1091, Defeat 15 = main.py:1020) and the Desktop
+    background-layer z-order (clover under the book/content).
+- Test inventory (actual counts, local):
+  - FULL REGRESSION: 39 suites, 569 pass, 0 fail, 15 skip — exit 0, PROBLEM SUITES: NONE,
+    HARNESS_ERRORS: NONE (was 38/562 before adding the new suite)
+  - NEW unit suite m12_clover_book.test.js: 7/7 (types the two root causes directly)
+  - NEW real-Chromium harness _m12_fix_verify.js: 16 probes, 0 fails
+  - M11 live-production suite against the deployed 9f8b9b4 build: 180 questions,
+    123 correct / 57 wrong, 5111 invariants 0 fails, victory 1, defeat 1, 0 console/page/4xx errors
+- Real-browser pixel evidence (local, 1300x800 logical canvas):
+  - Menu clover pool 20 -> 172 clover pixels; Victory pool 15 -> 2428 px; Defeat pool 15 -> 982 px
+  - LessonSelect book chrome: cover (80,50,20) @ (41,400) · page (253,246,227) @ (56,400) ·
+    spine (150,150,150) @ (640,720) — all previously invisible
+- Files changed: web/js/states_real.js · web/tests/m12_clover_book.test.js (new) ·
+  web/tests/_m12_fix_verify.js (new) · web/tests/_run_regression.py · web/CHECKPOINTS.md
+- Python Desktop: NOT changed (READ-ONLY SOURCE OF TRUTH).
+- Render: production still serves the 9f8b9b4 build (live /js/states_real.js sha256
+  3e8180e04bc11b695ccaea1dd31b823345e639bb6b87e2ea19ba609f19cdb98e, 149506 B). No Render API key,
+  deploy hook or dashboard session exists in the workspace, so the redeploy could not be triggered
+  from here -> M12_GITHUB_VERIFIED_RENDER_PENDING.
