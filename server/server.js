@@ -172,7 +172,7 @@ async function handleAuth(req, res, pathname) {
   try {
     if (method === 'POST' && pathname === '/api/auth/register') {
       const body = await readJsonBody(req);
-      const result = await authService.register(body.username, body.password);
+      const result = await authService.register(body.username, body.password, body.grade);
       if (result.ok) return sendJson(res, 201, { ok: true, user: result.user });
       return sendJson(res, 400, result);
     }

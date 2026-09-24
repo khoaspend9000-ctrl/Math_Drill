@@ -24,7 +24,8 @@ class UserStore {
     this._load();
   }
 
-  createUser(username, passwordHash) {
+  createUser(username, passwordHash, extra) {
+    extra = extra || {};
     if (!username || typeof username !== 'string') {
       return { ok: false, error: 'INVALID_INPUT' };
     }
@@ -40,7 +41,7 @@ class UserStore {
       passwordHash: String(passwordHash),
       role: 'user', // M10-D: role server-side authority
       createdAt: new Date().toISOString(),
-      data: Object.create(null)
+      data: extra.data || Object.create(null)
     };
     this.users[u] = user;
     this._save();

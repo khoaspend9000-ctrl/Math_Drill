@@ -61,8 +61,10 @@
     return { status: r.status, data: data };
   }
 
-  async function backendRegister(username, password) {
-    const r = await apiFetch('/api/auth/register', { username: username, password: password });
+  async function backendRegister(username, password, grade) {
+    const payload = { username: username, password: password };
+    if (grade !== undefined && grade !== null) payload.grade = Number(grade);
+    const r = await apiFetch('/api/auth/register', payload);
     const d = r && r.data;
     if (r && r.status === 201 && d && d.ok) return { ok: true, msg: '\u0110\u0103ng k\u00fd th\u00e0nh c\u00f4ng!', user: d.user };
     if (d && d.error === 'USERNAME_TAKEN') return { ok: false, msg: 'T\u00e0i kho\u1ea3n \u0111\u00e3 t\u1ed3n t\u1ea1i!' };
@@ -337,7 +339,7 @@
 
     // game_init.py:4577-4594 — M10-C: backend branch
     async register(username, password, grade) {
-      if (USE_BACKEND) return backendRegister(username, password);
+      if (USE_BACKEND) return backendRegister(username, password, grade);
       if (!username || !password) return { ok: false, msg: 'Không được để trống!' };
       if (username in this.accounts) return { ok: false, msg: 'Tài khoản đã tồn tại!' };
       this.accounts[username] = {

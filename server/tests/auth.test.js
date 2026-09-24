@@ -74,6 +74,12 @@ async function main() {
     assert.strictEqual(b.user.username, 'testuser');
     assert.strictEqual(b.user.password, undefined);
   });
+  await test('T02b register preserves selected grade', async () => {
+    const res = await httpRequest(PORT, 'POST', '/api/auth/register', { username: 'gradeuser', password: 'pass123', grade: 3 });
+    assert.strictEqual(res.status, 201);
+    const body = JSON.parse(res.body);
+    assert.strictEqual(body.user.data.grade, 3);
+  });
   await test('T03 register duplicate', async () => {
     const res = await httpRequest(PORT, 'POST', '/api/auth/register', { username: 'testuser', password: 'x' });
     assert.strictEqual(res.status, 400);

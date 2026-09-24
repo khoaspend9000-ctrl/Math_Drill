@@ -64,14 +64,19 @@ class AuthService {
     return null;
   }
 
-  async register(username, password) {
+  async register(username, password, grade) {
     const uErr = this.validateUsername(username);
     if (uErr) return { ok: false, error: uErr };
     const pErr = this.validatePassword(password);
     if (pErr) return { ok: false, error: pErr };
+    const g = Number(grade);
+    const hasSelectedGrade = grade !== undefined && grade !== null && String(grade).trim() !== '';
+    const initialGrade = Number.isInteger(g) && g >= 1 && g <= 5 ? g : 1;
 
     const passwordHash = await this.hashPassword(password);
-    const result = this.userStore.createUser(username, passwordHash);
+    const result = this.userStore.createUser(username, passwordHash, {
+      data: hasSelectedGrade ? { grade: initialGrade, xp: 0, level: 1 } : Object.create(null)
+    });
     if (!result.ok) return result;
 
     return { ok: true, user: result.user };
