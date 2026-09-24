@@ -282,20 +282,26 @@ async function ready(page, ms) { await page.waitForTimeout(ms || 650); }
     t('A07 register button opens the RegisterState (Desktop parity)',
       okReg && (await cur(page)) === 'register');
 
+    // Wait for the register transition to finish before interacting. StateManager
+    // intentionally suppresses input while a transition is active; clicking the
+    // Back control during that fade makes this assertion race the transition.
+    await waitIdle(page, 4000);
     // Register back button (450,590,400x70) returns to login — same as Desktop.
     await clickCenter(page, { x: 450, y: 590, w: 400, h: 70 });
     const backLogin = await waitName(page, 'login', 6000);
     await waitIdle(page, 4000);   // fade still swallows input until fully done
+    const backLoginSettled = (await cur(page)) === 'login' && (await pending(page)) === null;
 
     // Returning to login resets the fields (Desktop prefill='' on re-entry) — retype.
-    await clickCenter(page, userRect);
-    await page.waitForTimeout(60);
-    await page.keyboard.type(USER, { delay: 8 });
-    await clickCenter(page, passRect);
-    await page.waitForTimeout(60);
-    await page.keyboard.type(PASS, { delay: 8 });
+    // Use the same tick-aware polling as A05: LoginState consumes queued keys on
+    // engine ticks, so reading immediately after keyboard.type is a harness race.
+    await typeUntil(userRect, USER, function () { return field('u'); }, USER);
+    await typeUntil(passRect, PASS, function () { return field('p'); }, PASS);
+    const a07Fields = { user: await field('u'), pass: await field('p'), active: await field('a') };
+    console.log('A07B_EXPECT=' + JSON.stringify({ user: USER, pass: PASS, backLogin: backLogin, settled: backLoginSettled, state: await cur(page) }));
+    console.log('A07B_FIELDS=' + JSON.stringify(a07Fields));
     t('A07b register back returns to login with fields retyped',
-      backLogin && (await field('u')) === USER && (await field('p')) === PASS);
+      backLogin && backLoginSettled && a07Fields.user === USER && a07Fields.pass === PASS);
 
     await clickCenter(page, loginBtn);
     const okMenu = await waitName(page, 'menu', 8000);
