@@ -51,20 +51,20 @@ const EXPECTED_ORDER = [
   'game_manager.js', 'theory_pages.js', 'ui.js',
   'shop.js', 'pet.js', 'skin.js', 'gacha.js', 'achievements.js', 'daily.js',
   'skill_tree.js', 'item_effects.js',
-  'state_manager.js', 'polish_m2.js', 'states_real.js', 'main.js'
+  'state_manager.js', 'polish_m2.js', 'states_real.js', 'settings_states.js', 'main.js'
 ];
 
 /* ---------- tests ---------- */
-check('T01 runtime JS inventory (33 modules, no non-runtime)', () => {
-  assert.strictEqual(production.length, 33,
-    'expected 33 runtime modules, got ' + production.length + ': ' + production.join(','));
+check('T01 runtime JS inventory (34 modules, no non-runtime)', () => {
+  assert.strictEqual(production.length, 34,
+    'expected 34 runtime modules, got ' + production.length + ': ' + production.join(','));
   for (const lg of NOT_LOADED) {
     assert.ok(!production.includes(lg), 'non-runtime ' + lg + ' must be excluded');
   }
 });
 
-check('T02 index.html script inventory (33 scripts)', () => {
-  assert.strictEqual(scripts.length, 33, 'index.html must load 33 scripts, got ' + scripts.length);
+check('T02 index.html script inventory (34 scripts)', () => {
+  assert.strictEqual(scripts.length, 34, 'index.html must load 34 scripts, got ' + scripts.length);
   for (const s of scripts) {
     assert.ok(/^js\//.test(s), 'script src must be under js/: ' + s);
     const p = path.join(WEB, s);

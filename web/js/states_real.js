@@ -672,7 +672,7 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
         { id: 'exam', x: x + card_w + gap, y: card_y2, w: card_w, h: card_h, icon: '📝', label: 'Thi Chuyển Lớp', sub: 'Kiểm tra tổng hợp', bg: [180, 130, 200], locked: 'M10' },
         { id: 'ach', x: x, y: card_y3, w: 140, h: 65, icon: '🏆', label: 'Thành Tích', bg: GREEN_BTN },
         { id: 'profile', x: x + 155, y: card_y3, w: 140, h: 65, icon: '👤', label: 'Hồ Sơ', bg: PURPLE_BTN },
-        { id: 'settings', x: x + 310, y: card_y3, w: 140, h: 65, icon: '⚙️', label: 'Cài Đặt', bg: SHADOW, locked: 'M10' },
+        { id: 'settings', x: x + 310, y: card_y3, w: 140, h: 65, icon: '⚙️', label: 'Cài Đặt', bg: SHADOW },
         { id: 'logout', x: row4_x, y: card_y4, w: 110, h: 55, icon: '🚪', label: 'Thoát', bg: RED_BTN },
         { id: 'shop', x: row4_x + 120, y: card_y4, w: 110, h: 55, icon: '🛒', label: 'Shop', bg: GREEN_BTN },
         { id: 'skill', x: row4_x + 240, y: card_y4, w: 110, h: 55, icon: '🌳', label: 'K.Năng', bg: PURPLE_BTN },
@@ -739,6 +739,8 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
           global.Game.states.change('pet', null, 'fade');
         } else if (c.id === 'skin') {
           global.Game.states.change('skin', null, 'fade');
+        } else if (c.id === 'settings') {
+          global.Game.states.change('settings', null, 'fade');
         } else if (c.id === 'admin') {
           // M10-D: server là authority — client chỉ hỏi /api/admin/me.
           // 200 → mở AdminPanel; 401/403 → thông báo, KHÔNG change state,

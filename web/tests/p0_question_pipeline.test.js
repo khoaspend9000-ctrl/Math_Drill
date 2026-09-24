@@ -148,7 +148,7 @@ function makeRealm() {
   /* ---- REAL scripts, in index.html dependency order ---- */
   ['logger.js', 'data_loader.js', 'mt19937.js', 'question_generator.js',
    'adaptive_ai.js', 'player.js', 'game_manager.js', 'theory_pages.js',
-   'state_manager.js', 'states_real.js', 'main.js'].forEach(function (f) {
+   'state_manager.js', 'states_real.js', 'settings_states.js', 'main.js'].forEach(function (f) {
     vm.runInContext(fs.readFileSync(path.join(JS, f), 'utf8'), ctx,
       { filename: path.join(JS, f) });
   });

@@ -38,6 +38,9 @@ global.TransitionEffect = class {
 };
 const sm = require(path.join(JS, 'state_manager.js'));
 const st = require(path.join(JS, 'states_real.js'));
+const settings = require(path.join(JS, 'settings_states.js'));
+st.SettingsState = settings.SettingsState;
+st.PasswordChangeState = settings.PasswordChangeState;
 
 let pass = 0, fail = 0;
 function check(name, fn) {
@@ -55,7 +58,7 @@ const REGISTRY = {
   pet: st.PetState, skin: st.SkinState, gacha: st.GachaState,
   achievement: st.AchievementState, daily: st.DailyState, skill_tree: st.SkillTreeState,
   bag: st.BagState, profile: st.ProfileState, skill_map: st.SkillMapState,
-  adminPanel: st.AdminPanelState
+  adminPanel: st.AdminPanelState, settings: st.SettingsState, passwordChange: st.PasswordChangeState
 };
 
 function makeGame(data) {
@@ -93,8 +96,8 @@ function freshData(over) {
 const click = (x, y) => ({ consumeClick: () => ({ x: x, y: y }), consumeWheel: () => null, consumePressedKey: () => null });
 
 /* T01 — registry completeness: main.js registers exactly the shipped states */
-check('FQA-T01 main.js registers all 20 shipped states', function () {
-  assert.strictEqual(REGISTERED.length, 20, 'registered=' + REGISTERED.length + ' (incl RegisterState)');
+check('FQA-T01 main.js registers all 22 shipped states', function () {
+  assert.strictEqual(REGISTERED.length, 22, 'registered=' + REGISTERED.length + ' (incl Register/Settings/Password)');
   for (const k of Object.keys(REGISTRY)) {
     assert.ok(REGISTERED.indexOf(k) >= 0, 'missing registration: ' + k);
   }

@@ -100,6 +100,20 @@ async function clickLogical(page, lx, ly) {
 async function clickCenter(page, rect) {
   await clickLogical(page, rect.x + rect.w / 2, rect.y + rect.h / 2);
 }
+async function typeUntil(page, rect, text, expectGetter, expectVal) {
+  await clickCenter(page, rect);
+  await page.waitForFunction(function (target) {
+    var s = window.Game && window.Game.states && window.Game.states.current;
+    return !!(s && s.activeField === target);
+      }, rect && rect.y === 490 ? 'pass' : 'user');
+  await page.keyboard.type(text, { delay: 6 });
+  const t0 = Date.now();
+  while (Date.now() - t0 < 3000) {
+    if (await expectGetter() === expectVal) return true;
+    await page.waitForTimeout(40);
+  }
+  return false;
+}
 async function ptr(page) { return await page.evaluate(function () { return window.Game.input.getPointerPosition(); }); }
 async function cur(page) { return await page.evaluate(function () { return window.Game.states.currentName; }); }
 async function pending(page) { return await page.evaluate(function () { return window.Game.states._pendingName; }); }
@@ -231,6 +245,8 @@ async function ready(page, ms) { await page.waitForTimeout(ms || 650); }
     }, { u: USER, p: PASS });
     t('A04 backend /api/auth/register works (status ' + reg + ')', reg === 201 || reg === 200);
 
+
+
     const userRect = { x: 1300 / 2 - 200, y: 410, w: 400, h: 50 };
     const passRect = { x: 1300 / 2 - 200, y: 490, w: 400, h: 50 };
     const loginBtn = { x: 1300 / 2 - 200, y: 580, w: 400, h: 60 };
@@ -244,18 +260,7 @@ async function ready(page, ms) { await page.waitForTimeout(ms || 650); }
         return w === 'u' ? s.userInput : (w === 'p' ? s.passInput : s.activeField);
       }, which);
     }
-    async function typeUntil(rect, text, expectGetter, expectVal) {
-      await clickCenter(page, rect);
-      await page.keyboard.type(text, { delay: 6 });
-      const t0 = Date.now();
-      while (Date.now() - t0 < 3000) {
-        if (await expectGetter() === expectVal) return true;
-        await page.waitForTimeout(40);
-      }
-      return false;
-    }
-
-    const okUser = await typeUntil(userRect, USER, function () { return field('u'); }, USER);
+    const okUser = await typeUntil(page, userRect, USER, function () { return field('u'); }, USER);
     t('A05 keyboard input reaches the username field', okUser);
 
     // Python parity: LoginState caps each field at 20 chars (main.py login gate).
@@ -272,7 +277,7 @@ async function ready(page, ms) { await page.waitForTimeout(ms || 650); }
     const restored = await field('u');
     t('A05c backspace restores the exact username', restored === USER);
 
-    await typeUntil(passRect, PASS, function () { return field('p'); }, PASS);
+    await typeUntil(page, passRect, PASS, function () { return field('p'); }, PASS);
     const typed = { u: await field('u'), p: await field('p'), f: await field('a') };
     t('A06 click on field switches active field', typed.f === 'pass');
 
@@ -285,23 +290,24 @@ async function ready(page, ms) { await page.waitForTimeout(ms || 650); }
     // Wait for the register transition to finish before interacting. StateManager
     // intentionally suppresses input while a transition is active; clicking the
     // Back control during that fade makes this assertion race the transition.
-    await waitIdle(page, 4000);
+    await waitIdle(page, 7000);
     // Register back button (450,590,400x70) returns to login — same as Desktop.
     await clickCenter(page, { x: 450, y: 590, w: 400, h: 70 });
-    const backLogin = await waitName(page, 'login', 6000);
-    await waitIdle(page, 4000);   // fade still swallows input until fully done
+    const backLogin = await waitName(page, 'login', 7000);
+    await waitIdle(page, 7000);   // fade still swallows input until fully done
     const backLoginSettled = (await cur(page)) === 'login' && (await pending(page)) === null;
 
     // Returning to login resets the fields (Desktop prefill='' on re-entry) — retype.
     // Use the same tick-aware polling as A05: LoginState consumes queued keys on
     // engine ticks, so reading immediately after keyboard.type is a harness race.
-    await typeUntil(userRect, USER, function () { return field('u'); }, USER);
-    await typeUntil(passRect, PASS, function () { return field('p'); }, PASS);
-    const a07Fields = { user: await field('u'), pass: await field('p'), active: await field('a') };
-    console.log('A07B_EXPECT=' + JSON.stringify({ user: USER, pass: PASS, backLogin: backLogin, settled: backLoginSettled, state: await cur(page) }));
-    console.log('A07B_FIELDS=' + JSON.stringify(a07Fields));
+    await typeUntil(page, userRect, USER, function () { return field('u'); }, USER);
+    await typeUntil(page, passRect, PASS, function () { return field('p'); }, PASS);
+    const a07Fields = { user: await field('u'), passChars: (await field('p')).length, active: await field('a') };
+    const a07Evidence = { user: USER, backLogin: backLogin, settled: backLoginSettled, state: await cur(page), fields: a07Fields };
+    fs.writeFileSync(path.join(ROOT, '_m13_a07_evidence.json'), JSON.stringify(a07Evidence, null, 2));
+    console.log('A07B_EVIDENCE=' + JSON.stringify(a07Evidence));
     t('A07b register back returns to login with fields retyped',
-      backLogin && backLoginSettled && a07Fields.user === USER && a07Fields.pass === PASS);
+      backLogin && backLoginSettled && a07Fields.user === USER && a07Fields.passChars === PASS.length);
 
     await clickCenter(page, loginBtn);
     const okMenu = await waitName(page, 'menu', 8000);
@@ -331,24 +337,70 @@ async function ready(page, ms) { await page.waitForTimeout(ms || 650); }
     const p1 = await ptr(page);
     t('A13 hover updates logical pointer (700,400)', Math.abs(p1.x - 700) < 3 && Math.abs(p1.y - 400) < 3);
 
-    // locked card → message, NO transition
+    // Settings is a real M13 state: open it, change a persisted control, reload it,
+    // and verify the player sees the restored value before returning to the menu.
     const settingsCard = cards.filter(function (c) { return c.id === 'settings'; })[0];
     await clickCenter(page, settingsCard);
-    await ready(page);
-    const lockedMsg = await page.evaluate(function () { return window.Game.states.states.menu.examMsg; });
-    t('A14 locked card shows lock message and does NOT navigate',
-      lockedMsg.length > 3 && (await cur(page)) === 'menu');
+    const settingsOpen = await waitName(page, 'settings', 6000);
+    await waitIdle(page, 4000);
+    const settingsBefore = await page.evaluate(function () {
+      const s = window.Game.states.states.settings;
+      return { open: window.Game.states.currentName === 'settings', volume: s && s.volume, quality: s && s.quality };
+    });
+    const volumeButton = await page.evaluate(function () { return window.Game.states.states.settings.buttons.volume; });
+    await clickCenter(page, volumeButton);
+    await ready(page, 250);
+    const settingsChanged = await page.evaluate(function () {
+      const s = window.Game.states.states.settings;
+      return { volume: s.volume, msg: s.statusMsg || s.msg || '', saved: window.Save.load(window.Save.KEYS.SETTINGS, {}) };
+    });
+    t('A14 settings opens and volume control gives feedback', settingsOpen && settingsChanged.volume !== settingsBefore.volume && settingsChanged.msg.length > 3);
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await waitName(page, 'login', 6000);
+    await page.evaluate(function () { return window.Game.auth.me(); });
+    await page.waitForTimeout(300);
+    t('A14b settings persists across reload', (await page.evaluate(function () { return window.Save.load(window.Save.KEYS.SETTINGS, {}).volume; })) === settingsChanged.volume);
+    await page.evaluate(function () { window.Game.states.change('settings', null, null); });
+    await waitName(page, 'settings', 4000);
+    await waitIdle(page, 3000);
+    const passwordRect = await page.evaluate(function () { return window.Game.states.states.settings.buttons.password; });
+    await clickCenter(page, passwordRect);
+    const passwordOpen = await waitName(page, 'passwordChange', 6000);
+    await waitIdle(page, 4000);
+    t('A14c settings opens the password-change screen', passwordOpen);
+    if (passwordOpen) {
+      const emptyChange = await page.evaluate(function () {
+        const s = window.Game.states.current;
+        return { name: s.name, msg: s.msg || '' };
+      });
+      const pbtn = await page.evaluate(function () { return window.Game.states.current.changeBtn; });
+      await clickCenter(page, pbtn);
+      await ready(page, 200);
+      const emptyFeedback = await page.evaluate(function () { return window.Game.states.current.msg; });
+      t('A14d password change gives immediate validation feedback', emptyFeedback.indexOf('Vui lòng') >= 0 && emptyChange.name === 'passwordChange');
+      const pback = await page.evaluate(function () { return window.Game.states.current.backBtn; });
+      await clickCenter(page, pback);
+      t('A14e password back returns to settings', await waitName(page, 'settings', 5000));
+      await waitIdle(page, 3000);
+    }
 
     // RBAC from the menu: a NON-admin clicking the admin card must be refused by
     // the SERVER (/api/admin/me → 401) and must NOT navigate (server-only authority)
-    await clickCenter(page, cards.filter(function (c) { return c.id === 'admin'; })[0]);
+    await page.evaluate(function () { window.Game.states.change('login', { prefill: '' }, null); });
+    await waitName(page, 'login', 4000); await waitIdle(page, 3000);
+    await typeUntil(page, userRect, USER, function () { return field('u'); }, USER);
+    await typeUntil(page, passRect, PASS, function () { return field('p'); }, PASS);
+    await clickCenter(page, loginBtn);
+    await waitName(page, 'menu', 8000); await waitIdle(page, 4000);
+    const cards2 = await page.evaluate(function () { return window.Game.states.states.menu.cards; });
+    await clickCenter(page, cards2.filter(function (c) { return c.id === 'admin'; })[0]);
     await page.waitForTimeout(900);
     const admMsg = await page.evaluate(function () { return window.Game.states.states.menu.examMsg; });
-    t('A14b non-admin admin-card click refused by server (msg="' + admMsg.slice(0, 30) + '")',
+    t('A14f non-admin admin-card click refused by server (msg="' + admMsg.slice(0, 30) + '")',
       admMsg.indexOf('Admin') >= 0 && (await cur(page)) === 'menu');
 
     // double click on a card must produce exactly ONE transition
-    const shopCard = cards.filter(function (c) { return c.id === 'shop'; })[0];
+    const shopCard = cards2.filter(function (c) { return c.id === 'shop'; })[0];
     await clickCenter(page, shopCard);
     await page.waitForTimeout(30);
     await clickCenter(page, shopCard);

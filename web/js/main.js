@@ -35,6 +35,8 @@
   const SkillTreeState = window.SkillTreeState;
   const BagState = window.BagState;
   const AdminPanelState = window.AdminPanelState; // M10-D
+  const SettingsState = window.SettingsState; // M13 Desktop-parity settings
+  const PasswordChangeState = window.PasswordChangeState; // M13
 
   window.Game = window.Game || {};
 
@@ -150,6 +152,8 @@
       game.states.register('profile', new ProfileState()); // POLISH M3
       game.states.register('skill_map', new SkillMapState()); // POLISH M3
       game.states.register('adminPanel', new AdminPanelState()); // M10-D
+      game.states.register('settings', new SettingsState()); // M13
+      game.states.register('passwordChange', new PasswordChangeState()); // M13
       game.states.change('loading');
 
       game.engine.setTick(function (dt, ctx, W, H) {
