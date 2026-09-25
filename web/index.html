@@ -18,6 +18,16 @@
         <button type="button" id="fatal-error-retry">Tải lại trang</button>
       </div>
     </div>
+    <!-- M14-E1: the game is a fixed 1300x800 landscape canvas. On a phone held in
+         portrait the wrap collapses to roughly 375x231 and leaves two thirds of the
+         screen empty, with tappable targets far too small. Ask for landscape
+         instead of shipping an unusable portrait layout. -->
+    <div id="rotate-hint" class="overlay" role="alertdialog" aria-live="polite">
+      <div class="fatal-error-card">
+        <h1>📲 Xoay ngang màn hình</h1>
+        <p class="fatal-error-body">MathDrill chơi trên khung ngang 1300&times;800. Xin hãy xoay điện thoại sang ngang để chơi.</p>
+      </div>
+    </div>
   </div>
 
   <script src="js/logger.js"></script>

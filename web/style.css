@@ -124,3 +124,30 @@ body {
   color: #0b1020;
   background: #93c5fd;
 }
+
+/* M14-E1 (portrait phones) ---------------------------------------------
+   The game canvas is a fixed 1300x800 landscape surface. Held in portrait
+   the wrap is limited by the width and collapses to ~375x231, so the player
+   gets a postage-stamp playfield plus two thirds of dead screen. Hide the
+   wrap and ask for landscape instead. Landscape and desktop are untouched. */
+#rotate-hint {
+  display: none;
+}
+
+@media (orientation: portrait) and (max-width: 900px) and (pointer: coarse) {
+  #game-wrap {
+    visibility: hidden;
+  }
+
+  #rotate-hint {
+    display: flex;
+    position: fixed;
+    inset: 0;
+    pointer-events: auto;
+    background: rgba(8, 12, 28, 0.97);
+  }
+
+  #rotate-hint .fatal-error-card h1 {
+    color: #fde68a;
+  }
+}
