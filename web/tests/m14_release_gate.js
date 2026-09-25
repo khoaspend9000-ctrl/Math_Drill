@@ -92,12 +92,22 @@ function git(args) {
   return execFileSync(GIT, ['-C', REPO].concat(args), { encoding: 'utf8', timeout: 30000, maxBuffer: 1 << 24 });
 }
 /* Git stores a blob as "blob <len>\0<bytes>"; hashing the raw object bytes
-   makes it directly comparable with an HTTP response body. */
-function gitBlobSha(sha, rel) {
-  const raw = execFileSync(GIT, ['-C', REPO, 'cat-file', 'blob', sha + ':' + rel],
-    { timeout: 30000, maxBuffer: 1 << 26 });
-  return crypto.createHash('sha256').update(raw).digest('hex');
+   makes it directly comparable with an HTTP response body.
+   CRITICAL: a Windows checkout holds CRLF while the blob (and a Linux deploy
+   such as Render) holds LF, so a raw byte comparison reports a false mismatch
+   for every file git ever rewrote. We therefore compare BOTH the raw hash and
+   an LF-normalised hash, and treat the file as matching when either agrees. */
+function sha256(buf) {
+  return crypto.createHash('sha256').update(buf).digest('hex');
 }
+function normaliseEol(buf) {
+  return Buffer.from(String(buf).replace(/\r\n/g, '\n'), 'utf8');
+}
+function gitBlobBytes(sha, rel) {
+  return execFileSync(GIT, ['-C', REPO, 'cat-file', 'blob', sha + ':' + rel],
+    { timeout: 30000, maxBuffer: 1 << 26 });
+}
+function gitBlobSha(sha, rel) { return sha256(gitBlobBytes(sha, rel)); }
 function gitBlobSize(sha, rel) {
   return Number(git(['cat-file', '-s', sha + ':' + rel]).trim());
 }
@@ -138,13 +148,15 @@ async function main() {
       await check('GATE-HASH ' + rel.replace(/^web\//, '/'), async function () {
         const r = await request(BASE + '/' + rel.replace(/^web\//, ''), 'GET');
         if (r.status !== 200) throw new Error('status ' + r.status);
-        const expected = gitBlobSha(liveCommit, rel);
-        const size = gitBlobSize(liveCommit, rel);
-        const line = (r.sha256 === expected ? 'MATCH' : 'MISMATCH') + ' ' + rel
+        const blob = gitBlobBytes(liveCommit, rel);
+        const rawOk = r.sha256 === sha256(blob);
+        const normOk = sha256(normaliseEol(r.buf)) === sha256(normaliseEol(blob));
+        const eol = (rawOk ? '' : ' (EOL only: CRLF vs LF)');
+        const line = (rawOk || normOk ? 'MATCH' : 'MISMATCH') + ' ' + rel
           + ' live=' + r.sha256.slice(0, 12) + '/' + r.buf.length
-          + ' git=' + expected.slice(0, 12) + '/' + size;
+          + 'git=' + sha256(blob).slice(0, 12) + '/' + blob.length + eol;
         hashLines.push(line);
-        if (r.sha256 !== expected) throw new Error('live bytes differ from ' + liveCommit + ' (' + line + ')');
+        if (!rawOk && !normOk) throw new Error('live bytes differ from ' + liveCommit + ' (' + line + ')');
       });
     }
   }
