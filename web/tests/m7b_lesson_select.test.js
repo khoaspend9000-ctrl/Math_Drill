@@ -221,5 +221,70 @@ check('T25 a player at level 469 sees lesson 79 unlocked (no padlock on page 9 t
     'lesson 79 is unlocked at level 469 and must not show the locked label');
 });
 
+/* ---- M14-C1: theory lookup must not silently fall back to the placeholder ----
+   theory_pages.js comes from math_theory.json; its titles are often more specific
+   than the math_lessons.json titles, so an exact-title lookup missed 273 of 342
+   lessons. The lesson number is the key both files share. */
+var LESSONS_JSON = require(path.join(JS, '..', 'data', 'math_lessons.json'));
+var theoryFactory = require(path.join(JS, 'theory_pages.js'));
+var THEORY = typeof theoryFactory === 'function' ? theoryFactory() : theoryFactory;
+var GRADE_KEY = { grade_1: 1, grade_2: 2, grade_3: 3, grade_4: 4, grade_5: 5 };
+
+function makeTheoryGame() {
+  global.Game = {
+    renderer: { clear: function () {}, fillRoundRect: function () {}, text: function () {} },
+    player: { level: 1, grade: 3, exp: 0, gold: 0 },
+    states: { change: function () {} },
+    audio: { playSfx: function () { return false; } },
+    assets: { get: function () { return null; } },
+    engine: { WIDTH: 1300, HEIGHT: 800 }
+  };
+}
+
+check('T26 theory resolves for EVERY lesson in EVERY grade (no placeholder)', function () {
+  var missing = [];
+  Object.keys(LESSONS_JSON).forEach(function (gk) {
+    var grade = GRADE_KEY[gk];
+    var pages = THEORY[grade] || [];
+    var lessons = Object.keys(LESSONS_JSON[gk]).sort(function (a, b) { return Number(a) - Number(b); });
+    lessons.forEach(function (id) {
+      var title = LESSONS_JSON[gk][id].title;
+      var num = Number(id);
+      makeTheoryGame();
+      var s = new statesReal.TheoryState();
+      s.enter({ grade: grade, title: title, lessonId: num });
+      if (!s.theoryFound) missing.push(gk + '#' + id);
+    });
+  });
+  assert.strictEqual(missing.length, 0,
+    'theory missing for ' + missing.length + ' lessons: ' + missing.slice(0, 8).join(', '));
+});
+
+check('T27 the number fallback picks the RIGHT page (grade 3 lesson 2)', function () {
+  makeTheoryGame();
+  var s = new statesReal.TheoryState();
+  s.enter({ grade: 3, title: 'Bài 2. Ôn tập phép cộng, phép trừ', lessonId: 2 });
+  assert.strictEqual(s.theoryFound, true);
+  var want = (THEORY[3] || []).filter(function (p) { return String(p.t).indexOf('Bài 2.') === 0; })[0];
+  assert.strictEqual(s.content, want.c);
+  assert.ok(s.content.indexOf('Nội dung đang được cập nhật') < 0, 'must not be the placeholder');
+});
+
+check('T28 exact-title match still wins over the number fallback', function () {
+  makeTheoryGame();
+  var s = new statesReal.TheoryState();
+  var exact = (THEORY[3] || [])[5];
+  s.enter({ grade: 3, title: exact.t, lessonId: 6 });
+  assert.strictEqual(s.content, exact.c);
+});
+
+check('T29 a genuinely absent lesson still shows the placeholder (no crash)', function () {
+  makeTheoryGame();
+  var s = new statesReal.TheoryState();
+  s.enter({ grade: 3, title: 'Bài 9999. Không tồn tại', lessonId: 9999 });
+  assert.strictEqual(s.theoryFound, false);
+  assert.ok(typeof s.content === 'string' && s.content.length > 0);
+});
+
 console.log('M7-B LessonSelect: pass=' + pass + ' fail=' + failed);
 process.exit(failed ? 1 : 0);

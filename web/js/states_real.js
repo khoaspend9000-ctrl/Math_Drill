@@ -1449,8 +1449,20 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
       this.lessonId = _pid;
       const factory = global.TheoryPages || (typeof require === 'function' ? require('./theory_pages.js') : null);
       const pages = factory ? (factory()[this.grade] || []) : [];
-      const page = pages.find(p => p.t === this.title);
+      /* M14-C1: exact title match only rescued 69/342 lessons. theory_pages.js is
+         written from math_theory.json and its titles are frequently more specific
+         than the lesson titles in math_lessons.json (e.g. lesson "Bài 2. Ôn tập
+         phép cộng, phép trừ" vs theory "Bài 2. Ôn tập phép cộng, phép trừ trong
+         phạm vi 1000"). The remaining 273 lessons silently fell back to
+         "Nội dung đang được cập nhật...". Fall back to the lesson NUMBER, which
+         is the stable key both files share, before giving up. */
+      let page = pages.find(p => p.t === this.title);
+      if (!page && this.lessonId) {
+        const want = 'Bài ' + this.lessonId + '.';
+        page = pages.find(p => String(p.t || '').indexOf(want) === 0);
+      }
       this.content = page ? page.c : 'Nội dung đang được cập nhật...';
+      this.theoryFound = !!page;
       this.currentPage = 0;
       this.scrollOffset = 0;
       const UI = global.UI || (typeof require === 'function' ? require('./ui.js') : null);
