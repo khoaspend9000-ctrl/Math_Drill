@@ -384,6 +384,14 @@ const server = http.createServer(async (req, res) => {
     }
     return;
   }
+  if (pathname.startsWith('/api/meta/')) {
+    try { handleMeta(req, res, pathname); }
+    catch (err) {
+      console.error('[Server] Meta unhandled error:', err.message);
+      if (!res.headersSent) sendJson(res, 500, { ok: false, error: 'SERVER_ERROR' });
+    }
+    return;
+  }
   // Unknown /api/* route → JSON 404 (M10-C contract: API endpoints never fall to static).
   if (pathname.startsWith('/api/')) {
     return sendJson(res, 404, { ok: false, error: 'NOT_FOUND' });
@@ -408,6 +416,31 @@ function start() {
 
 function stop() { return new Promise((resolve) => server.close(() => resolve())); }
 
+// M14-G1: deploy/build identity endpoint (read-only, no secrets).
+// Lets production verification prove the exact deployed commit without guessing.
+// M14-F1: also reports process uptime so Render cold starts are observable from
+// outside instead of being guessed at.
+const PROCESS_START_MS = Date.now();
+function handleMeta(req, res, pathname) {
+  const method = req.method.toUpperCase();
+  if (method === 'GET' && pathname === '/api/meta/version') {
+    // Render injects RENDER_GIT_COMMIT for the exact deployed commit.
+    // Plain `git rev-parse` fails on hosts without git on PATH, so prefer env first.
+    let commit = process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || 'unknown';
+    if (commit === 'unknown') {
+      try {
+        const cp = require('child_process');
+        const gitExe = process.env.GIT_EXE || 'git';
+        commit = cp.execFileSync(gitExe, ['rev-parse', 'HEAD'], { cwd: __dirname, timeout: 3000 }).toString().trim().slice(0, 40) || 'unknown';
+      } catch (e) { commit = 'unknown'; }
+    }
+    return sendJson(res, 200, {
+      ok: true, commit: commit, service: 'math-drill', branch: 'main',
+      uptimeSec: Math.floor((Date.now() - PROCESS_START_MS) / 1000)
+    });
+  }
+  return sendJson(res, 404, { ok: false, error: 'NOT_FOUND' });
+}
 if (require.main === module) { start(); }
 
 module.exports = { server, start, stop, authService, userStore, sessionStore };

@@ -98,3 +98,6 @@ _*.csv
 /_*.py
 /_*.txt
 
+
+# Per-suite server test data dirs (M14-G1) — NEVER commit
+server/tests/data_test_*/

@@ -1060,8 +1060,16 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
           const by = 150 + (i % 4) * 110;
           const unlocked = idx + 1 <= maxUnlocked;
           let label = String(this.lessons[idx]);
-          if (label.length > 29) label = label.slice(0, 26) + '...';
-          if (!unlocked) label = '🔒 ' + label;
+          if (!unlocked) {
+            // M14-D2: show the exact required level on locked lessons so the gate
+            // is self-explanatory instead of an unexplained padlock. Display-only
+            // — the gating formula above is unchanged (Desktop parity main.py:690/941).
+            const need = idx * 6 + 1;
+            const title = label.length > 22 ? label.slice(0, 19) + '...' : label;
+            label = '🔒 Lv' + need + ' ' + title;
+          } else if (label.length > 29) {
+            label = label.slice(0, 26) + '...';
+          }
           drawBtn(R, bx, by, 480, 80, label,
             unlocked ? (i % 2 === 0 ? PURPLE_BTN : ORANGE_BTN) : SHADOW,
             { fontSize: 18 });

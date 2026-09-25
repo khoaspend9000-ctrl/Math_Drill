@@ -84,11 +84,16 @@
     return Math.floor((level - 1) / 6) + 1;
   }
 
+  function requiredLevelForLesson(lessonIndex) {
+    return Math.floor(lessonIndex) * 6 + 1;
+  }
+
   var DataLoader = {
     loadAll: loadAll,
     getLessonsForGrade: getLessonsForGrade,
     isLessonUnlocked: isLessonUnlocked,
-    getUnlockedCount: getUnlockedCount
+    getUnlockedCount: getUnlockedCount,
+    requiredLevelForLesson: requiredLevelForLesson
   };
 
   global.DataLoader = DataLoader;
