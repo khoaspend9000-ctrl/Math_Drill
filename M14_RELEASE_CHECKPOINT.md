@@ -96,9 +96,27 @@ The failure is external: the Render service is not picking up `main` from
 deploy hook, or Render API credential in this workspace, so the deploy
 cannot be triggered from here.
 
+### Proof the pushed commit is deployable (clean-clone test)
+
+To rule out a build-breaking change in M14, the exact pushed commit was
+cloned fresh and run the way Render runs it:
+
+```text
+git clone --depth 1 --branch main  ->  7446976
+node server/server.js               ->  boots, admin seeded, no error
+GET /api/meta/version               ->  {"ok":true,"commit":"7446976...","uptimeSec":4}
+m14_release_gate.js (that server)   ->  pass=15 fail=0, HASH_MATCH=YES 9/9
+```
+
+The M14 delta therefore cannot be the cause. Render's own build of this
+commit would succeed; the service is simply not being told to build it.
+
 **Required human action (M15 F1):** Render dashboard → `math-drill-iwys` →
 confirm the connected repository is `khoaspend9000-ctrl/Math_Drill` and the
 branch is `main` → Manual Deploy → wait for the build to go live.
+Most likely cause: **auto-deploy is disabled** on the service, and M13 was
+deployed by hand. That is consistent with eight consecutive pushes being
+ignored across eight hours.
 
 Once live, the acceptance command is:
 
