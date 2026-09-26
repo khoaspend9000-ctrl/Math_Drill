@@ -47,12 +47,14 @@ Completed: 6 implemented, 7 verified/guarded, 0 skipped.
 - `server/tests/m14_meta_version.test.js` — new, T01-T09
 - `.gitignore` — per-suite server test data dirs, sqlite `-shm`/`-wal`
 
-## Bugs found and fixed (3 product + 1 environment)
+## Bugs found and fixed (4 product + 2 environment)
 
 1. **Theory placeholder for 273/342 lessons (M14-C1).** `TheoryState` matched theory pages by exact title. `theory_pages.js` derives from `math_theory.json` and its titles are frequently longer than the `math_lessons.json` titles, so Grade 3 lessons 2..81 mostly displayed the "being updated" placeholder. Fixed by falling back to the lesson number, the key both files share.
 2. **Unusable portrait layout (M14-E1).** On a 375x667 phone the fixed landscape canvas collapsed to 375x231, leaving two thirds of the screen as dead space with unusable tap targets. Fixed with a portrait-only rotate hint; landscape/desktop unchanged.
 3. **Locked lessons gave no reason (M14-D2).** A padlock alone told a child nothing about why a lesson was unavailable. It now shows the exact required level.
-4. **(Environment, not product.)** Leaked `PORT` / `MATHDRILL_DATA_DIR` shell variables made `m10d_admin` run against the wrong data dir. No code change; the regression harness is unaffected once the shell is clean.
+4. **Release gate failed on CRLF-vs-LF (M14-J1).** The gate compared live bytes to the Git blob byte-for-byte. A Windows checkout holds CRLF while the blob and a Linux deploy hold LF, so 4 of 9 critical files reported a false MISMATCH. Now compares raw **and** LF-normalised hashes, labelling the difference while still failing on real content drift.
+5. **(Environment, not product.)** Leaked `PORT` / `MATHDRILL_DATA_DIR` shell variables made `m10d_admin` run against the wrong data dir. No code change; the regression harness is unaffected once the shell is clean.
+6. **(Environment, not product.)** `.gitignore` uses CRLF, so a scripted `server/data/*.db-shm` / `-wal` insertion silently failed and the worktree never went clean after the server tests. Added via a line-aware edit.
 
 ## Test results
 
@@ -68,25 +70,50 @@ Request failures  0
 ## Production
 
 ```text
-Live commit at checkpoint time   9f0344c (M13)
-M14 commits pushed to            khoaspend9000-ctrl/Math_Drill  main = f44119c
-                                  khoaspend9000-ctrl/Math-Drill  main = f44119c
-Render deployment                PENDING — not yet observed live
+Live commit                     9f0344c  (M13, unchanged)
+GitHub Math_Drill main          9478b62
+GitHub Math-Drill main          9478b62
+Render deployment               NOT DEPLOYED after ~7 h and 7 pushes
 ```
 
-Render has not yet served any M14 commit. This is the same auto-deploy lag observed in M13. Once it lands, the acceptance command is:
+### F1 — Render has stopped deploying (operational blocker)
+
+Every M14 commit is verified present on `Math_Drill@main` via
+`git ls-remote` (`3a925a4`, `494d8f7`, `f44119c`, `b7e9335`, `ad764a5`,
+`bc41617`, `9478b62`), yet production still serves M13:
+
+```text
+GET /api/meta/version                       -> 404  (endpoint not live)
+GET /                                       -> 200
+GET /js/auth.js                             -> contains payload.grade  (M13 build)
+m14_release_gate.js against production      -> LIVE_COMMIT=unknown, HASH_MATCH=NO
+```
+
+The M14 gate run against a LOCAL server built from `HEAD` returns
+`HASH_MATCH=YES 9/9`, 15/15 pass, so the code and the gate are both sound.
+The failure is external: the Render service is not picking up `main` from
+`Math_Drill`. There is no `render.yaml`, `Procfile`, `.github/workflows`,
+deploy hook, or Render API credential in this workspace, so the deploy
+cannot be triggered from here.
+
+**Required human action (M15 F1):** Render dashboard → `math-drill-iwys` →
+confirm the connected repository is `khoaspend9000-ctrl/Math_Drill` and the
+branch is `main` → Manual Deploy → wait for the build to go live.
+
+Once live, the acceptance command is:
 
 ```text
 MATHDRILL_GIT=<git.exe> node web/tests/m14_release_gate.js
 ```
 
-which must report `LIVE_COMMIT=f44119c…`, `HASH_MATCH=YES 9/9`,
-`ANON_PLAYER_DATA=401`, `ANON_ADMIN_ME=401`, and exit 0.
+which must report `LIVE_COMMIT=9478b62…` (or any commit ≥ `3a925a4`),
+`HASH_MATCH=YES 9/9`, `ANON_PLAYER_DATA=401`, `ANON_ADMIN_ME=401`, exit 0.
 
 ## Unresolved
 
-- **A1 / B1 progression grind** remains a design constraint by explicit Desktop parity. Grade 3 lessons 79/80/81 need levels 469/475/481. Changing the formula would break parity and is out of M14 scope; it needs a human product decision.
-- **Render deploy latency** is externally controlled. M14-G1/J1 make it *observable* but cannot shorten it.
+- **A1 / B1 progression grind** remains a design constraint by explicit Desktop parity. Grade 3 lessons 79/80/81 need levels 469/475/481. Changing the formula would break parity and is out of M14 scope; it needs a human product decision. (Carried into M15 as C1.)
+- **Render deploy** — see F1 above. M14-G1/J1 made it observable; it cannot be forced from this workspace.
+
 
 ## Artifact / disk hygiene
 
