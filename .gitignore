@@ -9,6 +9,8 @@ _git_commit_*.py
 server/data/users.json
 server/data/sessions.json
 server/data/*.db
+server/data/*.db-shm
+server/data/*.db-wal
 
 # Python runtime
 __pycache__/
