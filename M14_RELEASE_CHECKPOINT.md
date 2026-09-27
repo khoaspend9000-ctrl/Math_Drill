@@ -127,6 +127,73 @@ MATHDRILL_GIT=<git.exe> node web/tests/m14_release_gate.js
 which must report `LIVE_COMMIT=9478b62…` (or any commit ≥ `3a925a4`),
 `HASH_MATCH=YES 9/9`, `ANON_PLAYER_DATA=401`, `ANON_ADMIN_ME=401`, exit 0.
 
+### M14-J2: new decisive evidence for WHY the deploy never happens
+
+339 bounded production polls over ~31 hours produced **zero** change on the
+live service (`/api/meta/version` = 404, `index.html` = 2555 bytes = M13's
+exact blob). Direct evidence was then collected from the public GitHub API
+to stop guessing at the cause:
+
+```text
+GET /repos/.../Math_Drill             -> 200  private=false  default_branch=main
+GET /repos/.../Math_Drill/deployments -> 200  count = 0        <-- key finding
+GET /repos/.../commits/<sha>/check-runs -> 200  total_count = 0
+GET /repos/.../commits/<sha>/status     -> 200  state=pending, total_count = 0
+GET /users/.../repos                  -> 200  count = 1  (only Math_Drill)
+```
+
+`deployments = 0` for the **entire history** of the repository. Render
+registers a deployment record through the GitHub Deployments API on every
+build it performs through the GitHub App. Zero records — including for the
+M13 release that *is* live — means:
+
+**Render is not wired to this repository through the GitHub App, and no
+automatic deployment path exists for this service.**
+
+That single fact explains every symptom seen across M13/M14:
+
+- M13 went live because a human clicked **Manual Deploy** in the dashboard.
+- Every later push (including M14's eight pushes) was ignored, because a
+  push to `main` is not a deploy trigger for this service.
+- No check-run/status is ever posted, so GitHub shows nothing happening.
+
+Therefore the prior hypothesis ("auto-deploy is disabled on a GitHub-App-
+connected service") narrows to the stronger conclusion: the service is
+most likely configured from a **public Git repository URL** rather than the
+GitHub App integration, which has no auto-deploy at all.
+
+A final, exhaustive sweep of this workspace found no way to trigger a build:
+
+```text
+deploy-hook URL (api.render.com/deploy/srv-…) anywhere : NOT FOUND
+RENDER_*/DEPLOY_* env var names (User + Machine scope)  : NONE
+credential-manager entries for render/github            : NONE
+gh CLI                                                  : NOT INSTALLED
+render CLI                                              : NOT INSTALLED
+render.yaml / Procfile / Dockerfile / .github/workflows : ABSENT
+```
+
+**Required human action (unchanged in substance, now with a confirmed
+cause):** open the Render dashboard for `math-drill-iwys`, check whether the
+service is connected as *Public Git repository* or via the *GitHub App*:
+
+1. If **Public Git repository** → click **Manual Deploy → Deploy latest
+   commit** (no auto-deploy will ever fire in this configuration).
+2. If **GitHub App** → confirm repo `khoaspend9000-ctrl/Math_Drill`, branch
+   `main`, then enable **Auto-Deploy** and click **Manual Deploy** once.
+
+Then run the acceptance command above.
+
+### Commit identity note (code vs. documentation)
+
+The M14 **code** commit is `c3d78e1b1fb4a12ab6e7645526e6fc2082514925`
+(clean-clone gate: `pass=15 fail=0`, `HASH_MATCH=YES 9/9`). This J2 note and
+the `9478b62`/`7446976` checkpoint updates are documentation-only commits on
+top of it; the application tree they carry is byte-identical to the tree
+that passed the clean-clone gate. Any commit ≥ `9478b62` therefore satisfies
+the gate, and `main` is currently `c3d78e1`.
+
+
 ## Unresolved
 
 - **A1 / B1 progression grind** remains a design constraint by explicit Desktop parity. Grade 3 lessons 79/80/81 need levels 469/475/481. Changing the formula would break parity and is out of M14 scope; it needs a human product decision. (Carried into M15 as C1.)
