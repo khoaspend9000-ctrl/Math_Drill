@@ -173,6 +173,17 @@
       const code = ev.code || k;
       STATE.keys[k] = true;
       if (code) STATE.keys['__code__:' + code] = true;
+      /* M14-D3: never enqueue modifier combinations or bare modifier keys.
+         Chromium reports Ctrl+A / Ctrl+C / Ctrl+V / Ctrl+Z / Alt+A with
+         key === 'a'/'c'/'v'/'z', and every text field in the game appends any
+         `key.length === 1` event to its buffer. That silently typed the literal
+         letter into usernames and passwords (a user pressing Ctrl+A while
+         entering a password got "a" appended and then could not log in).
+         Shift is NOT treated as a modifier here because shifted characters are
+         legitimate text input ('A', '!', '+'), and Shift itself is length > 1. */
+      if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
+      if (k === 'Control' || k === 'Alt' || k === 'Meta' || k === 'Shift' ||
+          k === 'CapsLock' || k === 'Dead' || k === 'Unidentified') return;
       STATE._keyQueue.push({ key: k, code: code, time: performance.now(), repeat: !!ev.repeat });
       STATE._lastKeyDisplay = k === ' ' ? 'Space' : (k && k.length === 1 ? k : (String(k).length > 12 ? k.slice(0, 12) : k));
       STATE._keyFlash = 0.6;
