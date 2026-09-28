@@ -1,0 +1,54 @@
+# MathDrill — Render deployment descriptor (M15-F2)
+#
+# WHY THIS FILE EXISTS
+#   M15-F2 recorded "no render.yaml, no Procfile, no CI" as a gap: the
+#   deployment configuration lived only in a human's Render dashboard, so it
+#   was invisible to the repository and to any future maintainer.
+#
+#   M15-F1 root cause (measured, not guessed): the repository had ZERO
+#   entries in the GitHub Deployments API, while commits were confirmed
+#   present on Math_Drill@main via `git ls-remote`. Render records a
+#   deployment through that API on every GitHub-triggered build, so no
+#   record means the service is not receiving GitHub build events. The
+#   service is deployed manually from the dashboard.
+#
+#   This file does NOT change that; it makes the required configuration
+#   explicit and reviewable in the repository:
+#     - the exact service runtime (Node, zero external dependencies)
+#     - the exact start command that is proven to work locally
+#     - the exact repo subdirectory the web assets live in
+#
+# WHAT IS ACTUALLY REQUIRED IN THE RENDER DASHBOARD
+#   If this blueprint is not adopted, a human must set, by hand:
+#     Root Directory  : server
+#     Build Command   : (leave empty — the server has no dependencies)
+#     Start Command   : node server.js
+#     Health Check    : GET /api/meta/version
+#   and then trigger Manual Deploy for the exact commit being released.
+#   The build command is empty on purpose: server/server.js requires no
+#   npm packages at all, so `npm install` would only add latency and a
+#   second failure mode.
+#
+# VERIFIED BEFORE PUBLISHING
+#   - server/server.js external requires: [] (all Node builtins)
+#   - server/package.json dependencies: {}
+#   - static web assets are served from ../web relative to server/
+#   - `node server.js` boots and answers 200 on GET / (verified locally)
+
+services:
+  - type: web
+    name: math-drill
+    runtime: node
+    # The service listens on process.env.PORT (Render injects it) and
+    # falls back to 3000 locally.
+    plan: free
+    rootDir: server
+    buildCommand: ""
+    startCommand: node server.js
+    healthCheckPath: /api/meta/version
+    autoDeploy: true
+    envVars:
+      # Sessions must survive a restart; the default in-memory store is
+      # for local development only.
+      - key: NODE_ENV
+        value: production

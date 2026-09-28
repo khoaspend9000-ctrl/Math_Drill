@@ -4,7 +4,11 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "python web/tests/_run_regression.py",
+    "test:web": "python web/tests/_run_regression.py",
+    "test:server": "node server/tests/auth.test.js",
+    "test:m15": "node web/tests/m15_question_variety.test.js && node web/tests/m15_weak_topics.test.js && node web/tests/m15_progress_clarity.test.js && node web/tests/m15_theory_quality.test.js && node web/tests/m15_ux_consistency.test.js && node web/tests/m15_mobile_touch.test.js",
+    "release:gate": "node web/tests/m14_release_gate.js"
   },
   "keywords": [],
   "author": "",

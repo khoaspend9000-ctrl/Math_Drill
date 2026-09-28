@@ -1143,6 +1143,15 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
       this.buttons = [];
       this.missing = false;
       this.backBtn = { x: 20, y: H - 80, w: 200, h: 60 };
+      /* M15-E2 REPRODUCED: there was no on-screen numeric keypad, so a
+         phone (which has no physical keyboard) could only answer by
+         tapping the four big answer buttons. M15-D2 added the physical
+         digit row; this adds the touch equivalent. Placed in the band
+         below the 2x2 answer grid and beside the back button, so it
+         never overlaps an answer and stays inside the 1300x800 logical
+         design. Drawn only when a touch device is detected. */
+      this.keypad = null;
+      this._initKeypad();
     }
 
     enter(params) {
@@ -1212,6 +1221,34 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
     }
 
     // Grid 2x2 như Python main.py:1484-1488 (btn_w=220, gap 240/110)
+    // M15-E2: touch-only numeric keypad. Returns the 4 key rects, or null
+    // when the device has no touch input (desktop keeps the physical keys
+    // from M15-D2 and does not need an on-screen pad).
+    _isTouchDevice() {
+      try {
+        if (global.Game && global.Game.engine && global.Game.engine.isTouch) return true;
+        if (typeof navigator !== 'undefined') {
+          if (navigator.maxTouchPoints && navigator.maxTouchPoints > 0) return true;
+          if ('ontouchstart' in global) return true;
+        }
+      } catch (e) { /* never block the lesson screen */ }
+      return false;
+    }
+
+    _initKeypad() {
+      if (!this._isTouchDevice()) { this.keypad = null; return; }
+      // Below the answer grid (startY 440, rows at 440 and 550, h 90),
+      // in the free band under the second row and clear of the back button.
+      const kw = 96, kh = 60, gap = 14;
+      const totalW = kw * 4 + gap * 3;
+      const startX = W / 2 - totalW / 2;
+      const y = 660;
+      this.keypad = [1, 2, 3, 4].map((n, i) => ({
+        digit: n, x: startX + i * (kw + gap), y: y, w: kw, h: kh
+      }));
+      this.keypadRect = { x: startX, y: y, w: totalW, h: kh };
+    }
+
     _buildOptionButtons() {
       const self = this;
       const w = 220, h = 90, gapX = 240, gapY = 110;
@@ -1314,6 +1351,19 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
         if (hit(click, this.backBtn.x, this.backBtn.y, this.backBtn.w, this.backBtn.h)) {
           global.Game.states.change('menu', null, 'fade');
           return;
+        }
+        // M15-E2: on-screen keypad tap (touch devices).
+        if (this.keypad) {
+          for (let k = 0; k < this.keypad.length; k++) {
+            const kk = this.keypad[k];
+            if (hit(click, kk.x, kk.y, kk.w, kk.h)) {
+              if (!(this.feedback && this.feedback.active)
+                  && this.buttons && kk.digit - 1 < this.buttons.length) {
+                this._onOptionClick(this.buttons[kk.digit - 1]);
+              }
+              return;
+            }
+          }
         }
         for (let i = 0; i < this.buttons.length; i++) {
           const b = this.buttons[i];
@@ -1432,6 +1482,15 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
           font: 'bold 22px Quicksand, sans-serif', fill: 'rgba(255,255,255,0.85)',
           align: 'center', baseline: 'middle'
         });
+        }
+        // M15-E2: on-screen numeric keypad for touch devices.
+        if (this.keypad) {
+          this.keypad.forEach((kk) => {
+            drawBtn(R, kk.x, kk.y, kk.w, kk.h, String(kk.digit), BLUE_BTN, { fontSize: 24 });
+          });
+          R.text('PHIM SO', this.keypadRect.x, this.keypadRect.y - 16, {
+            font: 'bold 14px Quicksand, sans-serif', fill: '#8ea6d8', align: 'center', baseline: 'middle'
+          });
         }
         // Feedback overlay (rút gọn FeedbackOverlay — polish ở M8)
         if (this.feedback && this.feedback.active) {
