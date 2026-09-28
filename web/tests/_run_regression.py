@@ -17,6 +17,7 @@ test_suites = [
     'm12_clover_book.test.js','m13_settings.test.js','m14d3_control_keys.test.js',
     'm15_review_practice.test.js','m15_question_variety.test.js',
     'm15_weak_topics.test.js','m15_progress_clarity.test.js',
+    'm15_theory_quality.test.js',
 ]
 
 def first(pattern, text, flags=0):

@@ -1,7 +1,153 @@
 (function (global) {
   'use strict';
+
+  // =========================================================
+  // M15-B4 — theory bodies are too thin to teach from.
+  // ---------------------------------------------------------
+  // MEASURED, not assumed: 345 theory pages across the five grades have
+  // ZERO duplicate bodies — the original B4 claim of "14 identical
+  // Luyện tập chung strings" is NOT true; every body is distinct. The
+  // real defect is length: the average body is 44 characters and the
+  // shortest is 10 ("s = v x t."). A child opens Theory, reads one
+  // clause, then drills 15 questions on the topic.
+  // Desktop math_theory.json is thinner still (2-3 sample pages per
+  // grade), so this is a content gap in the data itself, not a port
+  // mismatch. Python is read-only, so the Desktop text is preserved
+  // VERBATIM and only extended below.
+  // FIX: the Desktop body stays the first line of every page; thin
+  // bodies then get teaching points derived from the lesson's own
+  // `template` field in math_lessons.json (the same metadata M15-A put
+  // to work for question generation). Nothing is invented per lesson —
+  // the points describe the topic the curriculum already declares.
+  // Pages at or above the threshold are left exactly as they are.
+  // =========================================================
+  var THIN_BODY_CHARS = 60;
+
+  var TEMPLATE_POINTS = {
+    arithmetic: [
+      'Cong, tru, nhan, chia deu tinh tu phai sang trai.',
+      'Ket qua tren 9 thi nho 1 don vi sang hang ben trai.',
+      'Kiem tra lai bang cach doi thu tu phep tinh.'
+    ],
+    logic: [
+      'Day duoc sap xep theo mot quy luat, so sanh cac so lien ke.',
+      'Doan quy luat truoc, kiem tra lai bang so dau va so cuoi.'
+    ],
+    compare: [
+      'So sanh hang chuc truoc, roi den hang don vi.',
+      'Ky hieu: > lon hon, < nho hon, = bang nhau.'
+    ],
+    geometry: [
+      'Chu vi = 2 x (dai + rong);  Dien tich = dai x rong.',
+      '1 m = 10 dm = 100 cm; doi don vi truoc khi tinh.'
+    ],
+    measure: [
+      'Do bang cm, dm, m; 1 m = 100 cm.',
+      'Nhan khi quy doi sang don vi nho, chia khi sang don vi lon.'
+    ],
+    clock: [
+      'Mot gio co 60 phut; doc so lon la gio, so nho la phut.',
+      'Cong them phut, vuot 60 thi doi sang gio.'
+    ],
+    fraction: [
+      'Phan so co tu so va mau so.',
+      'Mot phan cua so: chia so cho mau so roi nhan voi tu so.'
+    ],
+    decimal: [
+      'Phan nguyen o truoc dau cham, phan thap phan o sau.',
+      'Moi chu so ben phai cham thap phan mot lan giam dan.'
+    ],
+    percentage: [
+      'Phan tram = (so phan tram x so) / 100.',
+      '100% = toan bo, 50% = mot nua.'
+    ],
+    physics: [
+      's = v x t;  v = s : t.',
+      'Don vi: v la km/h, s la km, t la gio.'
+    ]
+  };
+
+  var DEFAULT_POINTS = [
+    'Doc ky de bai truoc khi tinh.',
+    'Lam lai mot lan de chac chan hon.'
+  ];
+
+  // Lesson number carried by a theory title, e.g. "Bài 79. Ôn tập ..." -> 79.
+  function lessonNoOf(title) {
+    var m = /(\d+)/.exec(String(title || ''));
+    return m ? parseInt(m[1], 10) : null;
+  }
+
+  // grade -> lessonNo -> template, from the same math_lessons.json the
+  // question generator uses. Loaded lazily and only once.
+  var _tplCache = null;
+  function templateMap() {
+    if (_tplCache) return _tplCache;
+    _tplCache = {};
+    try {
+      var json = null;
+      if (typeof require === 'function') {
+        // theory_pages.js lives in web/js/, the lesson data in web/data/.
+        json = require('../data/math_lessons.json');
+      }
+      if (!json && global.MathDrillLessons) json = global.MathDrillLessons;
+      if (!json) return _tplCache;
+      Object.keys(json).forEach(function (gk) {
+        if (gk === 'meta') return;
+        var g = parseInt(String(gk).split('_')[1], 10);
+        if (!isFinite(g)) return;
+        var map = _tplCache[g] || (_tplCache[g] = {});
+        var lessons = json[gk] || {};
+        Object.keys(lessons).forEach(function (id) {
+          var t = lessons[id] && lessons[id].template;
+          if (t) map[parseInt(id, 10)] = t;
+        });
+      });
+    } catch (e) {
+      _tplCache = {};
+    }
+    return _tplCache;
+  }
+
+  function templateFor(grade, lessonNo) {
+    if (!lessonNo) return null;
+    var m = templateMap();
+    var g = m[grade];
+    return (g && g[lessonNo]) || null;
+  }
+
+  // Desktop body first, unchanged; then points only if it was too short.
+  function expandTheory(body, template) {
+    var base = String(body === undefined || body === null ? '' : body).trim();
+    if (base.length >= THIN_BODY_CHARS) return base;
+    var points = TEMPLATE_POINTS[template] || DEFAULT_POINTS;
+    var out = base;
+    for (var i = 0; i < points.length; i++) {
+      if (out.indexOf(points[i]) < 0) out += (out ? '\n' : '') + '- ' + points[i];
+    }
+    return out;
+  }
+
+  // Returns new page objects; the original literal is never mutated, and
+  // `base` keeps the Desktop text so tests can assert it survived.
+  function enrich(pages) {
+    var out = {};
+    Object.keys(pages).forEach(function (grade) {
+      var g = parseInt(grade, 10);
+      out[grade] = (pages[grade] || []).map(function (p) {
+        var base = p.c;
+        return {
+          t: p.t,
+          c: expandTheory(base, templateFor(g, lessonNoOf(p.t))),
+          base: base
+        };
+      });
+    });
+    return out;
+  }
+
   function theoryPages() {
-  return {
+  return enrich({
     1: [
       { t: "B\u00e0i 1. C\u00e1c s\u1ed1 0, 1, 2, 3, 4, 5", c: "Nh\u1eadn bi\u1ebft s\u1ed1 l\u01b0\u1ee3ng c\u00e1c nh\u00f3m \u0111\u1ed3 v\u1eadt v\u00e0 c\u00e1ch \u0111\u1ecdc, vi\u1ebft c\u00e1c ch\u1eef s\u1ed1 t\u1eeb 0 \u0111\u1ebfn 5. S\u1ed1 0 bi\u1ec3u th\u1ecb kh\u00f4ng c\u00f3 v\u1eadt n\u00e0o." },
       { t: "B\u00e0i 2. C\u00e1c s\u1ed1 6, 7, 8, 9, 10", c: "Nh\u1eadn bi\u1ebft v\u00e0 c\u00e1ch \u0111\u1ecdc, vi\u1ebft c\u00e1c s\u1ed1 t\u1eeb 6 \u0111\u1ebfn 10. S\u1ed1 10 l\u00e0 s\u1ed1 c\u00f3 hai ch\u1eef s\u1ed1 \u0111\u1ea7u ti\u00ean." },
@@ -357,7 +503,7 @@
       { t: "B\u00e0i 74. \u00d4n t\u1eadp m\u1ed9t s\u1ed1 y\u1ebfu t\u1ed1 th\u1ed1ng k\u00ea v\u00e0 x\u00e1c su\u1ea5t", c: "T\u1ed5ng \u00f4n v\u1ec1 bi\u1ec3u \u0111\u1ed3 v\u00e0 x\u00e1c su\u1ea5t." },
       { t: "B\u00e0i 75. \u00d4n t\u1eadp chung", c: "B\u00e0i t\u1eadp t\u1ed5ng h\u1ee3p cu\u1ed1i n\u0103m l\u1edbp 5." },
     ],
-  };
+  });
   }
   global.TheoryPages = theoryPages;
   if (typeof module !== 'undefined' && module.exports) module.exports = theoryPages;
