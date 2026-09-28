@@ -9,9 +9,28 @@ const {
 } = require('../js/data_loader.js');
 
 let pass = 0, failed = 0;
+/* M15-G4 GUARD FIX (harness defect, not a weakened assertion):
+   check() used to call fn() inside try/catch. Seven checks return a
+   PROMISE (T10-T16, the getLessonsForGrade lesson-count guards), so a
+   rejected assertion escaped the catch and was reported as PASS. Deleting
+   grade-3 lesson 79 from math_lessons.json still gave "pass=29 fail=0".
+   Async checks are now collected and awaited before the summary, so a
+   failing promise is a real failure. The assertions themselves are
+   unchanged - they are simply observed now. */
+var pending = [];
 function check(name, fn) {
-  try { fn(); pass++; console.log('PASS  ' + name); }
-  catch (e) { failed++; console.error('FAIL  ' + name + ' :: ' + (e && e.message)); }
+  var r;
+  try { r = fn(); }
+  catch (e) { failed++; console.error('FAIL  ' + name + ' :: ' + (e && e.message)); return; }
+  if (r && typeof r.then === 'function') {
+    pending.push(r.then(function () {
+      pass++; console.log('PASS  ' + name);
+    }, function (e) {
+      failed++; console.error('FAIL  ' + name + ' :: ' + (e && e.message));
+    }));
+    return;
+  }
+  pass++; console.log('PASS  ' + name);
 }
 
 // ---- Unlock rules (main.py: (level-1)//6 + 1) ----
@@ -296,5 +315,8 @@ check('T29 a genuinely absent lesson still shows the placeholder (no crash)', fu
   assert.ok(typeof s.content === 'string' && s.content.length > 0);
 });
 
-console.log('M7-B LessonSelect: pass=' + pass + ' fail=' + failed);
-process.exit(failed ? 1 : 0);
+// M15-G4: flush async checks before the summary so their result counts.
+Promise.all(pending).then(function () {
+  console.log('M7-B LessonSelect: pass=' + pass + ' fail=' + failed);
+  process.exit(failed ? 1 : 0);
+});

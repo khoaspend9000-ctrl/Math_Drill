@@ -36,7 +36,14 @@
   }
 
   function _fetchJson(url) {
-    if (typeof fetch === 'function') {
+    // M15-G4: Node >= 18 defines a global fetch but rejects relative
+    // URLs, so a bare `typeof fetch` guard routed every Node caller into a
+    // guaranteed "Failed to parse URL" error and loadAll() fell back to {}.
+    // This hid behind the m7b harness defect (async checks never awaited),
+    // so lesson data silently did not load under Node. In the browser the
+    // document base resolves the relative path, so fetch is still correct there.
+    var canFetch = typeof fetch === 'function' && (typeof window !== 'undefined' || typeof location !== 'undefined');
+    if (canFetch) {
       return fetch(url).then(function (r) { return r.json(); });
     }
     if (typeof require === 'function') {

@@ -20,6 +20,7 @@ test_suites = [
     'm15_theory_quality.test.js',
     'm15_ux_consistency.test.js',
     'm15_mobile_touch.test.js',
+    'm15_python_guard.test.js',
 ]
 
 def first(pattern, text, flags=0):
