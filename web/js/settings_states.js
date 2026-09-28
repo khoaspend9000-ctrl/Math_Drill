@@ -160,19 +160,7 @@
   };
   ReviewState.prototype.update = function (dt) {};
   ReviewState.prototype.draw = function (ctx, W, H) {
-    var R = global.Game.renderer;
-    var T = global.MathDrillTheme;
-    /* M16 VISUAL: review is an analysis screen - give it a calm light stage
-       and a raised report card instead of a flat grey fill. */
-    if (T) T.backdrop(R, W, H, {
-      top: '#eef3ff', mid: '#e4ecff', bottom: '#d9e4fb',
-      glowA: T.rgba(T.C.violet, 0.22), glowB: T.rgba(T.C.accent, 0.18)
-    });
-    else R.clear('#f5f5fa');
-    if (T) T.card(R, 90, 40, W - 180, H - 100, {
-      radius: T.RAD.lg, top: 'rgba(255,255,255,0.95)', bottom: 'rgba(243,247,255,0.93)',
-      stroke: T.rgba(T.C.violet, 0.30), strokeW: 2
-    });
+    var R = global.Game.renderer; R.clear('#f5f5fa');
     R.text('PHAN TICH LOI SAI', W / 2, 80, { font: 'bold 40px Quicksand, sans-serif', fill: '#323250', align: 'center', baseline: 'middle' });
     if (!this.wrongAnswers.length) {
       R.text('KHONG CO CAU SAI', W / 2, 200, { font: '20px Quicksand, sans-serif', fill: '#329632', align: 'center', baseline: 'middle' });

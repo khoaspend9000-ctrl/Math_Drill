@@ -41,7 +41,11 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
   // Màu theo main.py / game_init.py (BV «record» effective palette:
   // game_init.py:1985-1991 gán lại từ COLORS — primary(0,188,212) success(76,175,80)
   // danger(244,67,54) accent(255,215,0) secondary(138,43,176) warning(255,152,0) shadow(100,100,100))
-  const BLUE_BTN   = [0, 188, 212];
+  // M16.1 identity fix: Desktop game_init.py:1986 binds BLUE_BTN=(70,130,180)
+  // (main.py imports this later binding, not the pastel set at line 309).
+  // The web had drifted to a bright cyan, which is why buttons looked like
+  // a modern web app rather than the original game.
+  const BLUE_BTN   = [70, 130, 180];
   const GREEN_BTN  = [76, 175, 80];
   const PURPLE_BTN = [138, 43, 176];
   const ORANGE_BTN = [255, 152, 0];
@@ -54,45 +58,14 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
   }
 
   // Helper vẽ button Canvas (M8 sẽ thay bằng ui.js Button theo plan)
-  /* M16 VISUAL: drawBtn now delegates to the shared design system so that
-   EVERY screen that draws a button (login, menu, lesson select, theory,
-   lesson, victory, defeat, review, settings, password, keypad) picks up the
-   same gradient face, 3D depth lip, coloured glow and type scale.
-   Contract preserved exactly: same rect, same label, same centre text,
-   same opts keys (radius / border / borderW / fontSize / textColor).
-   Nothing about gameplay, hit areas or scoring changes. */
-  // Raw 2D context, or null when a test harness stubs the renderer.
-  function ctxOfCtx(ctx) {
-    return ctx && typeof ctx.createRadialGradient === 'function' ? ctx : null;
-  }
-
-  function theme() {
-    if (global.MathDrillTheme) return global.MathDrillTheme;
-    if (typeof require === 'function') { try { require('./theme.js'); } catch (e) { } }
-    return global.MathDrillTheme || null;
-  }
-
   function drawBtn(R, x, y, w, h, label, bg, opts) {
     const o = opts || {};
-    const T = theme();
-    if (!T) {
-      R.fillRoundRect(x, y, w, h, o.radius || 12, css(bg), o.border || '#ffffff', o.borderW || 2);
-      R.text(label, x + w / 2, y + h / 2, {
-        font: 'bold ' + (o.fontSize || 20) + 'px Quicksand, Segoe UI, sans-serif',
-        fill: o.textColor || '#ffffff',
-        align: 'center',
-        baseline: 'middle'
-      });
-      return;
-    }
-    T.button(R, x, y, w, h, label, css(bg), {
-      radius: o.radius === undefined ? undefined : o.radius,
-      borderW: o.borderW,
-      fontSize: o.fontSize,
-      textColor: o.textColor,
-      disabled: o.disabled,
-      deep: o.deep,
-      glow: o.glow
+    R.fillRoundRect(x, y, w, h, o.radius || 12, css(bg), o.border || '#ffffff', o.borderW || 2);
+    R.text(label, x + w / 2, y + h / 2, {
+      font: 'bold ' + (o.fontSize || 20) + 'px Quicksand, Segoe UI, sans-serif',
+      fill: o.textColor || '#ffffff',
+      align: 'center',
+      baseline: 'middle'
     });
   }
 
@@ -323,7 +296,6 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
 
     draw(ctx, W2, H2) {
       const R = global.Game.renderer;
-      // M16 VISUAL: gradient stage instead of a flat fill (see draw() below for the themed version)
       R.clear('#141e37'); // main.py:162 s.fill((20,30,55)) + gradient (70,120,190)
       const bg = global.Game.assets && global.Game.assets.get('nen_game');
       if (bg && !bg.placeholder) {
@@ -332,50 +304,29 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
         R.image(bg, 0, 0, W2, H2);
         ctx.restore();
       }
-      /* M16 VISUAL: the boot screen is the FIRST thing a player sees, and on
-         Render a cold start can take 40-60s. It used to be a bare title plus a
-         thin bar on a flat fill, which reads as a hang. Now: branded gradient
-         stage, a glowing logo, a real panel, a determinate bar, a live tip and
-         an explicit "still working" reassurance. Progress semantics, minTime
-         and ready are untouched. */
-      const T = theme();
+      R.text('MATHDRILL', W2 / 2, H2 / 2 - 170, {
+        font: 'bold 54px Quicksand, Segoe UI, sans-serif',
+        fill: '#e0ecff', align: 'center', baseline: 'middle'
+      });
+      const barW = 520, barH = 28, bx = (W2 - barW) / 2, by = H2 / 2 - 20;
       const p = this.ready ? 1 : Math.min(1, this.elapsed / this.minTime);
-      const cx = W2 / 2, cy = H2 / 2;
-      if (T) T.backdrop(R, W2, H2); else R.clear('#141e37');
-
-      if (T) {
-        // logo plate
-        T.card(R, cx - 300, cy - 235, 600, 150, { radius: T.RAD.xl });
-        T.heading(R, 'MATHDRILL', cx, cy - 175, { size: T.F.display, color: T.C.accent });
-        T.body(R, 'Luyện toán vui cho bé', cx, cy - 118, { size: T.F.body, color: T.C.textDim });
-      } else {
-        R.text('MATHDRILL', cx, cy - 170, {
-          font: 'bold 54px Quicksand, Segoe UI, sans-serif',
-          fill: '#e0ecff', align: 'center', baseline: 'middle'
-        });
-      }
-
-      // loading panel
-      const barW = 520, barH = 22, bx = cx - barW / 2, by = cy + 10;
-      if (T) {
-        T.card(R, cx - 320, cy - 20, 640, 190, { radius: T.RAD.lg });
-        T.bar(R, bx, by, barW, barH, p, { color: T.C.accent });
-        T.body(R, 'Đang tải... ' + Math.round(p * 100) + '%', cx, by - 26,
-          { size: T.F.body, color: T.C.text });
-        T.divider(R, cx - 250, by + 52, 500);
-        T.body(R, this.tip, cx, by + 86, { size: T.F.small, color: T.C.gold });
-        T.body(R, this.ready ? 'Sẵn sàng!' : 'Lần đầu tải có thể mất vài giây...',
-          cx, by + 130, { size: T.F.tiny, color: T.C.textFaint });
-      } else {
-        R.fillRoundRect(bx, by, barW, barH, 11, 'rgba(40,40,60,0.9)', null, 0);
-        if (p > 0) R.fillRoundRect(bx, by, barW * p, barH, 11, 'rgb(100,200,255)', null, 0);
-        R.text('Đang tải... ' + Math.round(p * 100) + '%', cx, by - 26, {
-          font: '18px Quicksand, sans-serif', fill: '#e6e6f5', align: 'center', baseline: 'middle'
-        });
-        R.text(this.tip, cx, by + barH + 60, {
-          font: '18px Quicksand, sans-serif', fill: '#e6e6f5', align: 'center', baseline: 'middle'
-        });
-      }
+      R.fillRoundRect(bx, by, barW, barH, 14, 'rgba(40,40,60,0.9)', null, 0);
+      if (p > 0) R.fillRoundRect(bx, by, barW * p, barH, 14, 'rgb(100,200,255)', null, 0);
+      R.fillRoundRect(bx, by, barW, barH, 14, 'rgba(0,0,0,0)', 'rgba(255,255,255,0.9)', 2);
+      R.text('Đang tải... ' + Math.round(p * 100) + '%', W2 / 2, by - 36, {
+        font: '18px Quicksand, sans-serif', fill: '#e6e6f5', align: 'center', baseline: 'middle'
+      });
+      R.text(this.tip, W2 / 2, by + barH + 60, {
+        font: '18px Quicksand, sans-serif', fill: '#e6e6f5', align: 'center', baseline: 'middle'
+      });
+      /* M16.1: kept from M16 - the only loading change judged to still fit the
+         original game. Production cold boot measures 40-63s, and with no
+         explanation a child reads the wait as a hang. Plain text on the
+         original background art; no plate, no gradient, no new elements. */
+      R.text(this.ready ? 'Sẵn sàng!' : 'Lần đầu tải có thể mất vài giây...',
+        W2 / 2, by + barH + 96, {
+          font: '15px Quicksand, sans-serif', fill: '#9aa8c8', align: 'center', baseline: 'middle'
+      });
     }
   }
 
@@ -676,14 +627,7 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
 
     draw(ctx, W2, H2) {
       const R = global.Game.renderer;
-      const T = theme();
-      /* M16 VISUAL: login stays light and friendly (Desktop parity keeps a
-         pale background) but gains a soft themed wash instead of pure white. */
-      if (T) T.backdrop(R, W2, H2, {
-        top: '#eef3ff', mid: '#e2eaff', bottom: '#d7e2fb',
-        glowA: T.rgba(T.C.accent, 0.30), glowB: T.rgba(T.C.violet, 0.22)
-      });
-      else R.clear('#ffffff');
+      R.clear('#ffffff');
       const bg = global.Game.assets && global.Game.assets.get('nen_game');
       if (bg && !bg.placeholder) {
         ctx.save();
@@ -691,16 +635,8 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
         R.image(bg, 0, 0, W2, H2);
         ctx.restore();
       }
-      /* M16 VISUAL: a branded card behind the form gives the login screen a
-         clear focal point, and the title gets the accent colour and scale. */
-      if (T) T.card(R, W2 / 2 - 300, 190, 600, 420, {
-        radius: T.RAD.xl, top: 'rgba(255,255,255,0.96)', bottom: 'rgba(238,243,255,0.94)',
-        stroke: T.rgba(T.C.primary, 0.35), strokeW: 2
-      });
       R.text('MATHDRILL LOGIN', W2 / 2, 250, {
-        font: 'bold 44px ' + (T ? T.F.family : 'Quicksand, sans-serif'),
-        fill: T ? T.C.primary : '#788a9c', align: 'center', baseline: 'middle',
-        shadowColor: 'rgba(0,0,0,0.18)', shadowBlur: 8
+        font: 'bold 40px Quicksand, sans-serif', fill: '#788a9c', align: 'center', baseline: 'middle'
       });
       this._drawField(R, this.userRect, this.userInput, 'user', 'Tên đăng nhập', false);
       this._drawField(R, this.passRect, this.passInput, 'pass', 'Password', true);
@@ -882,16 +818,8 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
     draw(ctx, W2, H2) {
       const R = global.Game.renderer;
       const p = getPlayer();
-      const T = theme();
-      /* M16 VISUAL: the menu is the hub - give it depth and a warm glow
-         rather than a flat navy fill. All card rects are unchanged. */
-      if (T) T.backdrop(R, W2, H2, { glowA: T.rgba(T.C.accent, 0.18), glowB: T.rgba(T.C.violet, 0.16) });
-      else R.clear('#192341');
-      /* M16 VISUAL: this opaque full-screen fill (Desktop parity) sat on top
-         of the new gradient and erased it completely. With the theme active
-         it is demoted to a subtle unifying tint; without it, unchanged. */
-      if (!T) R.fillRoundRect(0, 0, W2, H2, 0, 'rgba(25,35,65,1)', null, 0);
-      else R.fillRoundRect(0, 0, W2, H2, 0, 'rgba(10,16,34,0.18)', null, 0);
+      R.clear('#192341');
+      R.fillRoundRect(0, 0, W2, H2, 0, 'rgba(25,35,65,1)', null, 0);
       /* Book chrome (Desktop main.py:745 RealisticBook(50,50,1200,700)) is painted
          by the REALISTICBOOK_P1 integration, which hooks Renderer.clear() and emits
          the chrome right after this clear. NOTE: the dashboard backdrop above is an
@@ -901,19 +829,10 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
       // Clover layer — Desktop main.py:743 draws it before the book (background layer).
       drawClover(R, this.cloverEffect);
       R.text('MATHDRILL', W2 / 2, 46, {
-        font: 'bold 36px ' + (T ? T.F.family : 'Quicksand, sans-serif'),
-        fill: T ? T.C.accent : '#e0ecff', align: 'center', baseline: 'middle',
-        shadowColor: 'rgba(0,0,0,0.45)', shadowBlur: 10
+        font: 'bold 34px Quicksand, sans-serif', fill: '#e0ecff', align: 'center', baseline: 'middle'
       });
       // LEFT panel — dashboard (Python draw_left)
-      /* M16 VISUAL: the two dashboard panels become raised surfaces so the
-         menu reads as a hub with hierarchy. Kept dark on purpose: Desktop
-         draws light text here and the book chrome sits behind it. */
-      if (T) T.card(R, 60, 120, 560, 640, {
-        radius: T.RAD.lg, top: 'rgba(46, 62, 108, 0.92)', bottom: 'rgba(24, 34, 66, 0.94)',
-        stroke: T.rgba(T.C.accent, 0.30), strokeW: 2
-      });
-      else R.fillRoundRect(60, 120, 560, 640, 18, 'rgba(255,255,255,0.06)', 'rgba(120,150,220,0.35)', 2);
+      R.fillRoundRect(60, 120, 560, 640, 18, 'rgba(255,255,255,0.06)', 'rgba(120,150,220,0.35)', 2);
       const hour = new Date().getHours();
       const g = hour < 12 ? 'Chào buổi sáng,' : (hour < 18 ? 'Chào buổi chiều,' : 'Chào buổi tối,');
       R.text(g, 100, 180, { font: '20px Quicksand, sans-serif', fill: '#b9c4de', baseline: 'middle' });
@@ -924,11 +843,7 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
       this._badge(R, 260, 255, 'Lớp ' + p.grade, [230, 235, 250], [45, 80, 160]);
       this._xpBar(R, 100, 310, 470, 24, p.exp, p.expToNextLevel);
       R.text('Vàng: ' + p.gold, 100, 365, { font: '18px Quicksand, sans-serif', fill: '#f3e2b0', baseline: 'middle' });
-      if (T) T.card(R, 680, 120, 560, 640, {
-        radius: T.RAD.lg, top: 'rgba(48, 60, 106, 0.92)', bottom: 'rgba(26, 34, 68, 0.94)',
-        stroke: T.rgba(T.C.violet, 0.32), strokeW: 2
-      });
-      else R.fillRoundRect(680, 120, 560, 640, 18, 'rgba(255,255,255,0.06)', 'rgba(150,120,255,0.35)', 2);
+      R.fillRoundRect(680, 120, 560, 640, 18, 'rgba(255,255,255,0.06)', 'rgba(150,120,255,0.35)', 2);
       R.text('Chọn chế độ chơi:', 730, 150, {
         font: 'bold 24px Quicksand, sans-serif', fill: '#e9e2ff', baseline: 'middle'
       });
@@ -1131,23 +1046,7 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
 
     draw(ctx, W2, H2) {
       const R = global.Game.renderer;
-      /* M16 VISUAL: the green board is Desktop identity (main.py:2084) and is
-         kept exactly. On top of it we add a themed title plate and a soft
-         vignette so the board reads as a designed surface, not a flat fill. */
-      const T = theme();
-      const g2 = ctxOfCtx(ctx);
-      if (g2) {
-        const vg = g2.createRadialGradient(W2 / 2, H2 / 2, H2 * 0.25, W2 / 2, H2 / 2, H2 * 0.95);
-        vg.addColorStop(0, 'rgba(255,255,255,0.16)');
-        vg.addColorStop(1, 'rgba(20,60,30,0.28)');
-        g2.fillStyle = vg;
-        g2.fillRect(0, 0, W2, H2);
-      }
       R.clear('#a5d6a7');
-      if (T) T.card(R, W2 / 2 - 190, 30, 380, 62, {
-        radius: T.RAD.lg, top: 'rgba(255,255,255,0.92)', bottom: 'rgba(238,247,238,0.90)',
-        stroke: T.rgba(T.C.success, 0.45), strokeW: 2
-      });
       /* Book chrome: Desktop main.py:2084 (LessonSelectState) fills the green
          background and *then* draws RealisticBook(50,50,1200,700) — the same order
          the REALISTICBOOK_P1 integration reproduces by hooking this clear. The raw
@@ -1431,7 +1330,7 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
         L.info('[Lesson] kết thúc — accuracy', stats.accuracy.toFixed(1) + '%');
         if (result.victory) {
           global.Game.states.change('victory', {
-            title: 'HOĂ€N THĂNH BĂI Há»ŒC!',
+            title: 'HOÀN THÀNH BÀI HỌC!',
             score: this.gm.score,
             lessonTitle: this.title,
             lessonId: this.lessonId,
@@ -1523,35 +1422,24 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
 
     draw(ctx, W2, H2) {
       const R = global.Game.renderer;
-      /* M16 VISUAL: gradient stage, framed header, stat chips. Layout
-         coordinates, the title string and the progress call are
-         unchanged - only the presentation. */
-      const T = theme();
-      if (T) T.backdrop(R, W2, H2, { glowA: T.rgba(T.C.primary, 0.18), glowB: T.rgba(T.C.accent, 0.13) });
-      else R.clear('#1e2840');
-      if (T) T.card(R, 40, 18, W2 - 80, 70, { radius: T.RAD.lg });
+      R.clear('#1e2840');
       // Top bar (Python draw_top_bar + title)
-      R.text('MathDrill 5.0', W2 / 2, 52, {
-        font: 'bold 30px Quicksand, Segoe UI, sans-serif', fill: T ? T.C.accent : '#dbe6ff', align: 'center', baseline: 'middle'
+      R.text('MathDrill 5.0', W2 / 2, 40, {
+        font: 'bold 30px Quicksand, sans-serif', fill: '#dbe6ff', align: 'center', baseline: 'middle'
       });
-      R.text(this.title, 100, 52, {
-        font: '18px Quicksand, sans-serif', fill: T ? T.C.textDim : '#9ab6ff', baseline: 'middle'
+      R.text(this.title, 100, 40, {
+        font: '18px Quicksand, sans-serif', fill: '#9ab6ff', baseline: 'middle'
       });
       // Progress "Câu X/15" (Python draw_progress_bar main.py:1642)
       this._progress(R, W2 / 2 - 250, 150, 500, 24, this.cc, this.tc,
         'Câu ' + Math.min(this.cc + 1, this.tc) + '/' + this.tc);
       // Difficulty + score (Python main.py:1706-1712)
-      if (T) {
-        T.badge(R, W2 / 2 - 300, 232, 'Độ khó: ' + (this.missing ? '—' : '3/10'), { color: T.C.violet, h: 30, fontSize: T.F.tiny });
-        T.badge(R, W2 / 2 + 120, 232, 'Điểm: ' + this.sc, { color: T.C.gold, h: 30, fontSize: T.F.tiny });
-      } else {
-        R.text('Độ khó: ' + (this.missing ? '—' : '3/10'), W2 / 2 - 280, 240, {
-          font: '16px Quicksand, sans-serif', fill: '#9ab6ff', baseline: 'middle'
-        });
-        R.text('Điểm bài tập: ' + this.sc, W2 / 2 + 100, 240, {
-          font: '16px Quicksand, sans-serif', fill: '#ffe164', baseline: 'middle'
-        });
-      }
+      R.text('Độ khó: ' + (this.missing ? '—' : '3/10'), W2 / 2 - 280, 240, {
+        font: '16px Quicksand, sans-serif', fill: '#9ab6ff', baseline: 'middle'
+      });
+      R.text('Điểm bài tập: ' + this.sc, W2 / 2 + 100, 240, {
+        font: '16px Quicksand, sans-serif', fill: '#ffe164', baseline: 'middle'
+      });
 
       if (this.missing) {
         // Panel chờ M6 — không hard-code câu hỏi
@@ -1568,18 +1456,8 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
         const sc = Math.max(0.2, this.cardScale);
         const dw = cw * sc, dh = ch * sc;
         const qx = W2 / 2 - dw / 2, qy = 270 + (ch - dh) / 2;
-        /* M16 VISUAL: the question is the hero of the screen. Elevated themed
-           card with an accent border and a top highlight, instead of a flat
-           white plate. Same rect, same text position. */
-        if (T) {
-          T.card(R, qx, qy, dw, dh, {
-            radius: T.RAD.xl, top: '#ffffff', bottom: '#e8eeff',
-            stroke: T.rgba(T.C.accent, 0.55), strokeW: 3
-          });
-        } else {
-          R.fillRoundRect(qx + 5, qy + 8, dw, dh, 24, 'rgba(0,0,0,0.25)', null, 0);
-          R.fillRoundRect(qx, qy, dw, dh, 24, '#ffffff', 'rgb(80,150,255)', 5);
-        }
+        R.fillRoundRect(qx + 5, qy + 8, dw, dh, 24, 'rgba(0,0,0,0.25)', null, 0);
+        R.fillRoundRect(qx, qy, dw, dh, 24, '#ffffff', 'rgb(80,150,255)', 5);
         if (sc > 0.5) {
           /* Parity draw_multiline_text: question nhiều dòng, không tràn card. */
           const qMaxW = dw - 60;
@@ -1590,7 +1468,7 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
           const qY0 = qy + dh / 2 - (Math.min(qLines.length, 3) - 1) * qLh / 2;
           for (let li = 0; li < qLines.length && li < 3; li++) {
             R.text(qLines[li], W2 / 2, qY0 + li * qLh, {
-              font: qFont, fill: T ? T.C.textInk : '#28303f', align: 'center', baseline: 'middle'
+              font: qFont, fill: '#28303f', align: 'center', baseline: 'middle'
             });
           }
         }
@@ -1627,47 +1505,17 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
           });
         }
         // Feedback overlay (rút gọn FeedbackOverlay — polish ở M8)
-        /* M16 VISUAL: correct/wrong must be obvious at a glance for a
-           child. A wide glowing banner tinted green or red, a big glyph, a
-           punchy headline, and - for a wrong answer - the correct answer
-           promoted to its own highlighted row. Both original message
-           strings are preserved verbatim. */
         if (this.feedback && this.feedback.active) {
-          const ok = this.feedback.correct;
-          const fcol = ok ? (T ? T.C.success : '#16a34a') : (T ? T.C.danger : '#dc2626');
-          const fdeep = ok ? (T ? T.C.successDeep : '#15803d') : (T ? T.C.dangerDeep : '#b91c1c');
-          const bx = W2 / 2 - 340, by = 286, bw = 680, bh = 150;
-          if (T) {
-            T.card(R, bx, by, bw, bh, {
-              radius: T.RAD.xl, top: T.lighter(fcol, 0.10), bottom: fdeep,
-              stroke: T.lighter(fcol, 0.35), strokeW: 3
+          const fcol = this.feedback.correct ? '#16a34a' : '#dc2626';
+          R.fillRoundRect(W2 / 2 - 300, 300, 600, 120, 18, 'rgba(10,14,28,0.92)', fcol, 3);
+          R.text(this.feedback.correct ? '✅ Đúng rồi! (bấm để tiếp tục)' : '❌ Sai rồi — bấm để tiếp tục',
+            W2 / 2, 340, {
+              font: 'bold 24px Quicksand, sans-serif', fill: '#ffffff', align: 'center', baseline: 'middle'
             });
-            T.heading(R, ok ? '✓' : '✗', bx + 64, by + bh / 2, {
-              size: 66, color: T.C.white, shadowBlur: 14
+          if (!this.feedback.correct) {
+            R.text('Đáp án đúng: ' + this.feedback.correctAnswer, W2 / 2, 388, {
+              font: '18px Quicksand, sans-serif', fill: '#ffe9a8', align: 'center', baseline: 'middle'
             });
-            R.text(ok ? 'Đúng rồi! (bấm để tiếp tục)' : 'Sai rồi — bấm để tiếp tục',
-              bx + 368, by + 52, {
-                font: 'bold 28px ' + T.F.family, fill: T.C.white, align: 'center', baseline: 'middle',
-                shadowColor: 'rgba(0,0,0,0.35)', shadowBlur: 6
-              });
-            if (!ok) {
-              T.badge(R, bx + 196, by + 94, 'ĐÁP ÁN ĐÚNG: ' + this.feedback.correctAnswer,
-                { color: T.C.gold, h: 38, fontSize: T.F.body, textColor: T.C.textInk });
-            } else if (this.comboStreak > 0) {
-              T.badge(R, bx + 210, by + 94, 'COMBO x' + this.comboStreak,
-                { color: T.C.gold, h: 34, fontSize: T.F.small, textColor: T.C.textInk });
-            }
-          } else {
-            R.fillRoundRect(W2 / 2 - 300, 300, 600, 120, 18, 'rgba(10,14,28,0.92)', fcol, 3);
-            R.text(this.feedback.correct ? '✅ Đúng rồi! (bấm để tiếp tục)' : '❌ Sai rồi — bấm để tiếp tục',
-              W2 / 2, 340, {
-                font: 'bold 24px Quicksand, sans-serif', fill: '#ffffff', align: 'center', baseline: 'middle'
-              });
-            if (!this.feedback.correct) {
-              R.text('Đáp án đúng: ' + this.feedback.correctAnswer, W2 / 2, 388, {
-                font: '18px Quicksand, sans-serif', fill: '#ffe9a8', align: 'center', baseline: 'middle'
-              });
-            }
           }
         }
       }
@@ -1918,19 +1766,8 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
 
     draw(ctx, W2, H2) {
       const R = global.Game.renderer;
-      const T = theme();
-      /* M16 VISUAL: a win should feel like a win. Rich green stage with a
-         golden glow, so the result screen reads as a celebration. */
-      if (T) T.backdrop(R, W2, H2, {
-        top: '#1d6b40', mid: '#1e5030', bottom: '#123523',
-        glowA: T.rgba(T.C.gold, 0.28), glowB: T.rgba(T.C.success, 0.20)
-      });
-      else R.clear('#1e5030');
-      /* M16 VISUAL: this opaque full-screen fill (Desktop parity) sat on top
-         of the new gradient and erased it completely. With the theme active
-         it is demoted to a subtle unifying tint; without it, unchanged. */
-      if (!T) R.fillRoundRect(0, 0, W2, H2, 0, 'rgba(30,80,45,1)', null, 0);
-      else R.fillRoundRect(0, 0, W2, H2, 0, 'rgba(10,16,34,0.18)', null, 0);
+      R.clear('#1e5030');
+      R.fillRoundRect(0, 0, W2, H2, 0, 'rgba(30,80,45,1)', null, 0);
       // Desktop main.py:1163 — clover layer is drawn before the victory UI.
       drawClover(R, this.cloverEffect);
       R.text('🏆 HOÀN THÀNH BÀI HỌC 🏆', W2 / 2, 140, {
@@ -1938,21 +1775,14 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
       });
       if (!this.showUi) return;
       const pw = 600, ph = 340, px = W2 / 2 - pw / 2, py = H2 / 2 - 80;
-      /* M16 VISUAL: the result panel becomes a raised, celebratory card so the
-         rewards read as a summary sheet rather than a flat white box. */
-      if (T) T.card(R, px, py, pw, ph, {
-        radius: T.RAD.xl, top: 'rgba(255,255,255,0.97)', bottom: 'rgba(240,247,255,0.95)',
-        stroke: T.rgba(T.C.gold, 0.65), strokeW: 3
-      });
-      else R.fillRoundRect(px, py, pw, ph, 26, 'rgba(255,255,255,0.93)', 'rgb(200,170,80)', 5);
+      R.fillRoundRect(px, py, pw, ph, 26, 'rgba(255,255,255,0.93)', 'rgb(200,170,80)', 5);
       R.text(this.rank, px + pw - 110, py + 50, {
         font: 'bold 90px Quicksand, sans-serif',
         fill: this.rank === 'S' ? 'rgb(200,170,80)' : '#c7ccd4',
         align: 'center', baseline: 'middle'
       });
       R.text(this.title, W2 / 2, py + 52, {
-        font: 'bold 28px ' + (T ? T.F.family : 'Quicksand, sans-serif'),
-        fill: T ? T.C.primary : '#28303f', align: 'center', baseline: 'middle'
+        font: 'bold 26px Quicksand, sans-serif', fill: '#28303f', align: 'center', baseline: 'middle'
       });
       R.text('Điểm số: ' + this.score, W2 / 2, py + 98, {
         font: '22px Quicksand, sans-serif', fill: '#3a4255', align: 'center', baseline: 'middle'
@@ -2069,19 +1899,8 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
 
     draw(ctx, W2, H2) {
       const R = global.Game.renderer;
-      const T = theme();
-      /* M16 VISUAL: defeat is a nudge, not a punishment - deep indigo with a
-         soft violet glow and a readable panel, not a flat black slab. */
-      if (T) T.backdrop(R, W2, H2, {
-        top: '#2a3358', mid: '#1e2337', bottom: '#141a2e',
-        glowA: T.rgba(T.C.violet, 0.24), glowB: T.rgba(T.C.primary, 0.16)
-      });
-      else R.clear('#1e2337');
-      /* M16 VISUAL: this opaque full-screen fill (Desktop parity) sat on top
-         of the new gradient and erased it completely. With the theme active
-         it is demoted to a subtle unifying tint; without it, unchanged. */
-      if (!T) R.fillRoundRect(0, 0, W2, H2, 0, 'rgba(30,35,55,1)', null, 0);
-      else R.fillRoundRect(0, 0, W2, H2, 0, 'rgba(10,16,34,0.18)', null, 0);
+      R.clear('#1e2337');
+      R.fillRoundRect(0, 0, W2, H2, 0, 'rgba(30,35,55,1)', null, 0);
       // Desktop main.py:1051 — clover layer sits after the dark overlay and
       // before the panel/UI.
       drawClover(R, this.cloverEffect);
