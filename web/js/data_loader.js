@@ -67,6 +67,28 @@
       });
   }
 
+  // M15-A3/A4 — math_lessons.json carries a `template` per lesson that no
+  // generator ever read. Register the whole grade->lesson->template map on
+  // the QuestionGenerator so its fallback questions match the lesson topic.
+  function registerTemplates(data) {
+    if (typeof global.QuestionGenerator !== 'function') return false;
+    if (typeof global.QuestionGenerator.setLessonTemplates !== 'function') return false;
+    var applied = 0;
+    Object.keys(data).forEach(function (gradeKey) {
+      if (gradeKey === 'meta') return;
+      var grade = parseInt(String(gradeKey).split('_')[1], 10);
+      if (!isFinite(grade)) return;
+      var map = {};
+      var lessons = data[gradeKey] || {};
+      Object.keys(lessons).forEach(function (lessonId) {
+        var t = lessons[lessonId].template;
+        if (t) { map[parseInt(lessonId, 10)] = t; applied++; }
+      });
+      global.QuestionGenerator.setLessonTemplates(grade, map);
+    });
+    return applied;
+  }
+
   function getLessonsForGrade(grade) {
     return loadAll().then(function (data) {
       var gk = _gradeKey(grade);

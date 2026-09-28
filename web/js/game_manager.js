@@ -87,8 +87,15 @@
       };
     }
 
-    onWrong() {
+    onWrong(record) {
       this.player.resetCombo();
+      /* M15-B1: carry the lesson's own wrong-answer record into the session
+         transcript so ReviewState/PracticeState have data to show.
+         contract: game_manager.py result.stats.wrong_answers + main.py
+         LessonState records {question, user_answer, correct_answer,
+         operation, lesson} at main.py:1489-1495. The no-arg call keeps its
+         old combo-only behaviour. */
+      if (record !== undefined && record !== null) this.wrongAnswers.push(record);
       return {
         comboStreak: this.player.comboStreak,
         comboMultiplier: this.player.comboMultiplier

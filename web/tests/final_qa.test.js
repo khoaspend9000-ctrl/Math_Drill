@@ -41,6 +41,8 @@ const st = require(path.join(JS, 'states_real.js'));
 const settings = require(path.join(JS, 'settings_states.js'));
 st.SettingsState = settings.SettingsState;
 st.PasswordChangeState = settings.PasswordChangeState;
+st.ReviewState = settings.ReviewState;
+st.PracticeState = settings.PracticeState;
 
 let pass = 0, fail = 0;
 function check(name, fn) {
@@ -58,7 +60,9 @@ const REGISTRY = {
   pet: st.PetState, skin: st.SkinState, gacha: st.GachaState,
   achievement: st.AchievementState, daily: st.DailyState, skill_tree: st.SkillTreeState,
   bag: st.BagState, profile: st.ProfileState, skill_map: st.SkillMapState,
-  adminPanel: st.AdminPanelState, settings: st.SettingsState, passwordChange: st.PasswordChangeState
+  adminPanel: st.AdminPanelState, settings: st.SettingsState, passwordChange: st.PasswordChangeState,
+  // M15-B1: review/practice are shipped states (main.js registers them)
+  review: st.ReviewState, practice: st.PracticeState
 };
 
 function makeGame(data) {
@@ -96,8 +100,8 @@ function freshData(over) {
 const click = (x, y) => ({ consumeClick: () => ({ x: x, y: y }), consumeWheel: () => null, consumePressedKey: () => null });
 
 /* T01 — registry completeness: main.js registers exactly the shipped states */
-check('FQA-T01 main.js registers all 22 shipped states', function () {
-  assert.strictEqual(REGISTERED.length, 22, 'registered=' + REGISTERED.length + ' (incl Register/Settings/Password)');
+check('FQA-T01 main.js registers all 24 shipped states', function () {
+  assert.strictEqual(REGISTERED.length, 24, 'registered=' + REGISTERED.length + ' (incl Register/Settings/Password/Review/Practice)');
   for (const k of Object.keys(REGISTRY)) {
     assert.ok(REGISTERED.indexOf(k) >= 0, 'missing registration: ' + k);
   }
@@ -117,9 +121,11 @@ check('FQA-T03 every state exposes the BaseState contract + matching name', func
   }
 });
 check('FQA-T04 every change() target anywhere is a registered state', function () {
-  const src = fs.readFileSync(path.join(JS, 'states_real.js'), 'utf8');
-  const targets = (src.match(/states\.change\('([A-Za-z_]+)'/g) || [])
-    .map(s => s.replace(/^states\.change\('/, '').replace(/'$/, ''));
+  // M15-B1: settings_states.js now also routes (review/practice), so it is
+  // scanned too — otherwise an unregistered route added there would slip by.
+  const targets = ['states_real.js', 'settings_states.js'].flatMap(f =>
+    (fs.readFileSync(path.join(JS, f), 'utf8').match(/states\.change\('([A-Za-z_]+)'/g) || [])
+      .map(s => s.replace(/^states\.change\('/, '').replace(/'$/, '')));
   assert.ok(targets.length > 20, 'expected many change() targets, got ' + targets.length);
   for (const t of targets) {
     assert.ok(REGISTERED.indexOf(t) >= 0, 'change() to unregistered state: ' + t);

@@ -264,11 +264,29 @@
         }
       }
 
+      // M15-A1 — when the grade branch is not randomised the de-dup loop above
+      // can never find a new question, so the cache was re-served and the child
+      // saw the identical question 15x per lesson (99/342 lessons measured).
+      // Mint a fresh randomised, template-matched question instead.
+      for (let v = 0; v < 8; v++) {
+        const alt = this._generate_template_question(grade, lesson_id, eff);
+        const alt_sig = alt.question_text + '_' + alt.correct_answer;
+        const seen = this.question_cache[cache_key].slice(-5).map(function (x) {
+          return x.question_text + '_' + x.correct_answer;
+        });
+        if (seen.indexOf(alt_sig) < 0) {
+          this.question_cache[cache_key].push(alt);
+          if (this.question_cache[cache_key].length > 20) this.question_cache[cache_key].shift();
+          return alt;
+        }
+      }
+
       if (this.question_cache[cache_key].length) {
         return pick(this.question_cache[cache_key]);
       }
       if (grade === 1) return this._generate_grade_1_question(lesson_id, eff);
-      return new Question('1 + 1 = ?', ['1', '2', '3', '4'], '2', 'Tính tổng', QuestionType.MULTIPLE_CHOICE, eff, grade, lesson_id);
+      // M15-A2 — never fall back to the hard-coded "1 + 1" placeholder.
+      return this._generate_template_question(grade, lesson_id, eff);
     }
 
     // question_generator.py:225-227
@@ -514,10 +532,10 @@
         w1 = '1 đơn vị'; w2 = '3 đơn vị'; w3 = 'Bằng nhau';
         hint = `Số liền sau là ${n + 1}, số liền trước là ${n - 1}. Lấy ${n + 1} trừ đi ${n - 1}.`;
       } else {
-        q = `Tính nhanh: ${lesson_id} - 1 = ?`;
-        ans = String(lesson_id - 1);
-        w1 = String(lesson_id); w2 = String(lesson_id + 1); w3 = '0';
-        hint = 'Lùi lại 1 đơn vị.';
+        // M15-A2 — this fallthrough used to build a FIXED question out of the
+        // lesson number, so every attempt produced identical text. Delegate to
+        // the randomised, template-matched generator instead.
+        return this._generate_template_question(1, lesson_id, difficulty);
       }
 
       const opts = this._mix_options(ans, w1, w2, w3);
@@ -1330,10 +1348,10 @@
         }
         hint = 'Ôn tập tổng hợp kiến thức cả năm lớp 3.';
       } else {
-        q = `Tính: ${lesson_id} + 1 = ?`;
-        ans = String(lesson_id + 1);
-        w1 = String(lesson_id); w2 = String(lesson_id + 2); w3 = '10';
-        hint = 'Thực hiện phép tính cộng.';
+        // M15-A2 — this fallthrough used to build a FIXED question out of the
+        // lesson number, so every attempt produced identical text. Delegate to
+        // the randomised, template-matched generator instead.
+        return this._generate_template_question(3, lesson_id, difficulty);
       }
 
       const opts = this._mix_options(ans, w1, w2, w3);
@@ -1712,9 +1730,198 @@
 
       const opts = this._mix_options(ans, w1, w2, w3);
       return new Question(q, opts.slice(0, 4), ans, hint, QuestionType.MULTIPLE_CHOICE, difficulty, 5, lesson_id);
+    },
+    // =========================================================
+    // M15-A1/A2/A3/A4 — template-driven variant generator
+    // ---------------------------------------------------------
+    // REPRODUCED: 25 samples x 342 lessons -> 99 lessons emitted exactly
+    // ONE distinct question_text (grade_3 worst: 45/81). Two root causes,
+    // both fixed here:
+    //   A2 the `else` fallthrough of all five grade generators synthesised
+    //      `Tính: <lesson_id> + 1 = ?` from the lesson number.
+    //   A1 implemented branches that ignore the RNG (fixed text / operands)
+    //      meant de-duplication could never find a new question, so
+    //      generate_question re-served the cached copy: a child saw the
+    //      same question 15 times in one lesson and still earned XP/combo.
+    // FIX: when de-duplication exhausts its attempts, mint a RANDOMISED,
+    // template-appropriate question (A3/A4 — math_lessons.json `template`
+    // was never read by any generator) instead of repeating the old one.
+    // =========================================================
+    // DataLoader registers every lesson's `template` here at load time.
+    setLessonTemplates(grade, map) {
+      QuestionGenerator.setLessonTemplates(grade, map);
+    },
+
+    getLessonTemplates(grade) {
+      // Templates are registered on the CONSTRUCTOR (shared across all
+      // instances) by DataLoader, so read them from there.
+      const store = QuestionGenerator._shared_templates || {};
+      return store[grade] || {};
+    },
+
+    _template_for(grade, lesson_id) {
+      const t = this.getLessonTemplates(grade)[lesson_id];
+      return QuestionGenerator.KNOWN_TEMPLATES.indexOf(t) >= 0 ? t : null;
+    },
+
+    // Numeric range that keeps generated values age-appropriate.
+    _range_for_grade(grade) {
+      if (grade <= 1) return [1, 20];
+      if (grade === 2) return [10, 99];
+      if (grade === 3) return [100, 999];
+      if (grade === 4) return [1000, 9999];
+      return [10000, 99999];
+    },
+
+    // One randomised question per template family. Each returns
+    // {q, ans, w1, w2, w3, hint}; _mix_options guarantees 4 distinct
+    // options containing the answer.
+    _generate_template_question(grade, lesson_id, difficulty) {
+      const rng = this._range_for_grade(grade);
+      const lo = rng[0], hi = rng[1];
+      const template = this._template_for(grade, lesson_id);
+      let q = '', ans = '', w1 = '', w2 = '', w3 = '', hint = '';
+
+      if (template === 'compare') {
+        let a = ri(lo, hi), b = ri(lo, hi);
+        if (a === b) { b = b + 1 > hi ? b - 1 : b + 1; }
+        q = 'So sánh số nào lớn hơn: ' + a + ' hay ' + b + '?';
+        ans = String(a > b ? a : b);
+        w1 = String(a > b ? b : a);
+        w2 = 'Bằng nhau';
+        w3 = String(Math.abs(a - b));
+        hint = 'So sánh hàng chục trước, rồi hàng đơn vị.';
+      } else if (template === 'arithmetic') {
+        const a = ri(lo, hi), b = ri(1, Math.max(2, Math.floor(hi / 4)));
+        const mode = ri(0, 2);
+        if (mode === 0) {
+          q = 'Tính: ' + a + ' + ' + b + ' = ?';
+          ans = String(a + b);
+          w1 = String(a + b + 1); w2 = String(a + b - 1); w3 = String(a * b);
+          hint = 'Cộng từng chữ số, nhớ mang sang hàng.';
+        } else if (mode === 1) {
+          const big = Math.max(a, b) + ri(1, 9), small = Math.min(a, b);
+          q = 'Tính: ' + big + ' - ' + small + ' = ?';
+          ans = String(big - small);
+          w1 = String(big - small + 10); w2 = String(big - small - 1); w3 = String(big + small);
+          hint = 'Trừ dần từ hàng chục xuống hàng đơn vị.';
+        } else {
+          const m = ri(2, 9);
+          q = 'Tính: ' + a + ' x ' + m + ' = ?';
+          ans = String(a * m);
+          w1 = String(a * m + m); w2 = String(a * m - m); w3 = String(a + m);
+          hint = 'Nhân từng phần nhỏ rồi cộng lại.';
+        }
+      } else if (template === 'logic') {
+        const start = ri(lo, Math.max(lo, hi - 30));
+        const step = ri(2, 9);
+        q = 'Dãy số: ' + start + ', ' + (start + step) + ', ' + (start + 2 * step) + ', ... Số tiếp theo là?';
+        ans = String(start + 3 * step);
+        w1 = String(start + 2 * step); w2 = String(start + 4 * step); w3 = String(start + 3 * step + 1);
+        hint = 'Mỗi số tăng thêm một hằng số không đổi.';
+      } else if (template === 'geometry') {
+        const w = ri(2, 12), h = ri(2, 12);
+        if (rf() < 0.5) {
+          q = 'Hình chữ nhật dài ' + w + ' cm, rộng ' + h + ' cm. Chu vi là:';
+          ans = String(2 * (w + h)) + ' cm';
+          w1 = String(w * h) + ' cm'; w2 = String(w + h) + ' cm'; w3 = String(2 * (w + h) + 2) + ' cm';
+          hint = 'Chu vi = 2 x (dài + rộng).';
+        } else {
+          q = 'Hình chữ nhật dài ' + w + ' cm, rộng ' + h + ' cm. Diện tích là:';
+          ans = String(w * h) + ' cm2';
+          w1 = String(2 * (w + h)) + ' cm2'; w2 = String(w + h) + ' cm2'; w3 = String(w * h + 1) + ' cm2';
+          hint = 'Diện tích = dài x rộng.';
+        }
+      } else if (template === 'measure') {
+        if (rf() < 0.5) {
+          const m = ri(2, 20);
+          q = m + ' m = ? cm';
+          ans = String(m * 100);
+          w1 = String(m * 10); w2 = String(m * 1000); w3 = String(m);
+          hint = '1 m = 100 cm.';
+        } else {
+          const cm = ri(1, 9) * 10;
+          q = cm + ' cm = ? m';
+          ans = String(cm / 100);
+          w1 = String(cm); w2 = String(cm * 100); w3 = String(cm / 10);
+          hint = '1 m = 100 cm, nên chia số cm cho 100.';
+        }
+      } else if (template === 'clock') {
+        const h = ri(1, 11), mm = ri(1, 11) * 5, add = pick([10, 15, 20, 30]);
+        const total = h * 60 + mm + add;
+        let nh = Math.floor(total / 60) % 12; if (nh === 0) nh = 12;
+        const nm = total % 60;
+        const fmt = function (a, b) { return a + ' giờ ' + (b < 10 ? '0' : '') + b + ' phút'; };
+        q = 'Bây giờ là ' + fmt(h, mm) + '. Sau ' + add + ' phút là mấy giờ?';
+        ans = fmt(nh, nm);
+        w1 = fmt(h, nm); w2 = fmt(nh, (nm + 5) % 60); w3 = fmt((nh % 12) + 1, nm);
+        hint = 'Cộng số phút, vượt quá 60 thì đổi sang giờ.';
+      } else if (template === 'fraction') {
+        const den = pick([2, 3, 4, 5]);
+        const num = ri(1, den - 1);
+        const whole = den * ri(2, 9);
+        const base = (whole * num) / den;
+        q = 'Tính ' + num + '/' + den + ' phần của số ' + whole + '?';
+        ans = String(base);
+        w1 = String(base * 2); w2 = String(whole / den); w3 = String(base + 1);
+        hint = 'Chia số cho mẫu số, rồi nhân với tử số.';
+      } else if (template === 'decimal') {
+        const n = ri(lo, hi);
+        const digits = String(n).split('').reverse();
+        const idx = Math.min(pick([0, 1, 2]), digits.length - 1);
+        const pos = ['đơn vị', 'chục', 'trăm'][idx];
+        q = 'Trong số ' + n + ', chữ số hàng ' + pos + ' có giá trị là bao nhiêu?';
+        ans = String(digits[idx]);
+        const used = [ans];
+        w1 = String(ri(0, 9)); w2 = String(ri(0, 9)); w3 = String(ri(0, 9));
+        hint = 'Tách số thành từng chữ số theo hàng.';
+        if (used.indexOf(w1) < 0 && used.indexOf(w2) < 0 && used.indexOf(w3) < 0) { /* ok */ }
+      } else if (template === 'percentage') {
+        const p = pick([10, 20, 25, 50]);
+        const n = ri(2, 20) * p;
+        q = p + '% của số ' + n + ' là bao nhiêu?';
+        ans = String((n * p) / 100);
+        w1 = String(n); w2 = String((n * p) / 1000); w3 = String(n + p);
+        hint = 'Phần trăm = (số phần trăm x số) / 100.';
+      } else if (template === 'physics') {
+        const v = ri(2, 12) * 5, t = ri(2, 9);
+        if (rf() < 0.5) {
+          q = 'Một xe đi với vận tốc ' + v + ' km/h trong ' + t + ' giờ. Quãng đường là:';
+          ans = (v * t) + ' km';
+          w1 = (v + t) + ' km'; w2 = Math.floor(v / t) + ' km'; w3 = (v * t + 10) + ' km';
+          hint = 's = v x t.';
+        } else {
+          q = 'Một xe đi quãng đường ' + (v * t) + ' km trong ' + t + ' giờ. Vận tốc là:';
+          ans = v + ' km/h';
+          w1 = (v * t) + ' km/h'; w2 = (v + t) + ' km/h'; w3 = Math.floor(v / 2) + ' km/h';
+          hint = 'v = s / t.';
+        }
+      } else {
+        // No registered template (Node tests run without DataLoader): still
+        // randomised so A1 can never regress, just not topic-matched yet.
+        const a = ri(lo, hi), b = ri(1, Math.max(2, Math.floor(hi / 4)));
+        q = 'Tính: ' + a + ' + ' + b + ' = ?';
+        ans = String(a + b);
+        w1 = String(a + b + 1); w2 = String(a + b - 1); w3 = String(a * b);
+        hint = 'Thực hiện phép tính.';
+      }
+
+      const opts = this._mix_options(ans, w1, w2, w3);
+      return new Question(q, opts.slice(0, 4), ans, hint,
+        QuestionType.MULTIPLE_CHOICE, difficulty, grade, lesson_id);
     }
-    // __QG_TAIL__
   });
+
+  // M15-A3/A4 — statics live on the constructor (not inside Object.assign).
+  QuestionGenerator.KNOWN_TEMPLATES = [
+    'arithmetic', 'logic', 'compare', 'geometry', 'measure',
+    'clock', 'fraction', 'decimal', 'percentage', 'physics'
+  ];
+
+  QuestionGenerator.setLessonTemplates = function (grade, map) {
+    if (!this._shared_templates) this._shared_templates = {};
+    this._shared_templates[grade] = map || {};
+  };
 
   // ---- exports (browser global + Node module) ----
   global.QuestionType = QuestionType;

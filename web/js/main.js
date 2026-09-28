@@ -25,6 +25,10 @@
   const LessonState = window.LessonState;
   const VictoryState = window.VictoryState;
   const DefeatState = window.DefeatState;
+  // M15-B1 — ReviewState/PracticeState live in settings_states.js (M13 file
+  // slot) because they reuse that module's fixed-rect/hit/drawButton contract.
+  const ReviewState = window.ReviewState;
+  const PracticeState = window.PracticeState;
   // M10-B — real M9 states (states_real.js)
   const ShopState = window.ShopState;
   const PetState = window.PetState;
@@ -140,6 +144,9 @@
       game.states.register('lesson', new LessonState());
       game.states.register('victory', new VictoryState());
       game.states.register('defeat', new DefeatState());
+      // M15-B1 — XEM LỖI from victory/defeat → analysis → optional practice
+      game.states.register('review', new ReviewState());
+      game.states.register('practice', new PracticeState());
       // M10-B — M9 systems accessible from Menu
       game.states.register('shop', new ShopState());
       game.states.register('pet', new PetState());

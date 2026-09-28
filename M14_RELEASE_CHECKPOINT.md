@@ -193,6 +193,109 @@ top of it; the application tree they carry is byte-identical to the tree
 that passed the clean-clone gate. Any commit ≥ `9478b62` therefore satisfies
 the gate, and `main` is currently `c3d78e1`.
 
+## M14-D3 — production bug found, reproduced, fixed and pushed
+
+While completing the production verification of the release above, a **real
+user-facing defect** was found on the live site and fixed.
+
+### Symptom
+
+Typing into any canvas text field was corrupted by modifier key
+combinations. Reproduced against `https://math-drill-iwys.onrender.com`
+with real Chromium, reading the live state buffer after each keystroke:
+
+```text
+click the password box, type "pw1"     ->  pw1
+press Ctrl+A                           ->  pw1A
+press Ctrl+C                           ->  pw1AC
+press Ctrl+V                           ->  pw1ACV
+press Ctrl+X                           ->  pw1ACVX
+press Ctrl+Z                           ->  pw1ACVXZ
+press Ctrl+Y                           ->  pw1ACVXZY
+press Ctrl+S                           ->  pw1ACVXZYS
+press Alt+A                            ->  pw1ACVXZYSa
+press Ctrl+Shift+A                     ->  pw1ACVXZYSaA
+```
+
+Live result of that run: `pass=4 fail=14`. A user who presses **Ctrl+A**
+while typing a password would silently end up with an extra "a" and then be
+unable to log in with the password they had just typed. Login, Register and
+the Password Change form were all affected.
+
+### Root cause
+
+`web/js/input.js` `_onKeyDown()` pushed **every** keydown into the key queue,
+and all four canvas text-field consumers append any event whose
+`key.length === 1`. Chromium reports Ctrl+A with `key === 'a'`, so the letter
+was typed. No modifier filtering existed anywhere in `web/js` (verified by
+grep for `ctrlKey|metaKey|altKey` — zero hits).
+
+### Fix
+
+`_onKeyDown()` now ignores modifier combinations (`ctrlKey || metaKey ||
+altKey`) and bare modifier keys before enqueueing. `Shift` is deliberately
+**not** filtered, because shifted characters are legitimate text input.
+Held-key bookkeeping (`STATE.keys`) is untouched.
+
+### Proof (red -> green)
+
+```text
+real Chromium, live production (unfixed)   4 pass / 14 fail
+same test, fixed build                    18 pass /  0 fail
+unit test vs pre-fix input.js              5 pass /  7 fail   ("pw1ac" !== "pw1")
+unit test vs fixed input.js               12 pass /  0 fail
+```
+
+### Password Change was verified properly as well
+
+The first probe of Password Change reported a failure whose message was
+"confirmation does not match". That was a **harness defect, not a product
+defect**, and it was traced rather than ignored:
+
+1. canvas fields have no select-all, and `Ctrl+A` was being dropped/queued
+   unpredictably, so the "clear field" step left characters behind;
+2. worse, the game consumes exactly **one key per frame**, so queueing 60
+   Backspaces starved the subsequent typing and the fields stayed empty.
+
+The harness now clears by pressing Backspace once per character, waits until
+the buffer is verifiably empty, types, then waits until the buffer matches.
+Result on the fixed build, real Chromium: **16 pass / 0 fail**, including the
+strongest proof available — after the change the **new password authenticates
+(HTTP 200)** and the **old password is rejected (HTTP 401)**.
+
+### Regression (no behaviour lost)
+
+```text
+web     41 suites, 598 pass, 0 fail, 15 skip, 0 harness errors
+server  11 suites, 136 pass, 0 fail
+local browser: C1 7/0, D2 8/0, E1 6/0
+local deep gameplay: 555 questions, 438 correct clicks, 117 wrong clicks,
+                     35 lessons across grades 1-5 (incl. Grade 3 >76),
+                     INVARIANT_CHECKS=15685 INVARIANT_FAILS=0,
+                     victory 1 + defeat 1, console/page/net errors 0
+```
+
+`T07`-`T10` of the new unit test specifically guard that plain typing,
+shifted characters, Backspace/Tab/Enter and arrow keys still work, so the
+filter cannot silently break input.
+
+### Deployment state of this fix
+
+Committed and pushed to both remotes:
+
+```text
+origin (Math-Drill) = e8101108e9dbdaf5d80d32abcf3df9cf6f621d9b
+render (Math_Drill) = e8101108e9dbdaf5d80d32abcf3df9cf6f621d9b
+```
+
+The live service was still serving `77e18fb` twenty minutes later, which is
+expected: the GitHub API reports **zero deployment records for the entire
+history of this repository**, including the `77e18fb` release that did go
+live. The service therefore has **no GitHub-App auto-deploy**; releases are
+put live by an action in the Render dashboard. Deploying the newest commit is
+equivalent for the application, because this commit and the `77e18fb` docs
+commit carry byte-identical `web/` and `server/` trees.
+
 
 ## Unresolved
 

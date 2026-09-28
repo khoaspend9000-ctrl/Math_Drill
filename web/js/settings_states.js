@@ -75,6 +75,241 @@
     drawButton(R, this.changeBtn, '🔑 ĐỔI MẬT KHẨU', GREEN); drawButton(R, this.backBtn, '⬅️ QUAY LẠI', RED);
     if (this.msgTimer > 0 && this.msg) R.text(this.msg, W / 2, 670, { font: '20px Quicksand, sans-serif', fill: this.msgOk ? '#187a2e' : '#9a3030', align: 'center', baseline: 'middle' });
   };
+  // =========================================================
+  // REVIEW STATE  (main.py:1324-1417) — "PHÂN TÍCH LỖI SAI"
+  // M15-B1/B2: ports Python ReviewState so the existing "XEM LỖI"
+  // buttons on Victory/Defeat stop being no-ops. Counts errors per
+  // operation (main.py:1345-1349), reports the most common one plus
+  // one suggestion based on the error count (main.py:1352-1362),
+  // then lists the first 3 wrong answers with user/correct text.
+  // The practice entry goes to PracticeState when wrong answers
+  // exist (main.py:1368-1372); the continue button returns to the
+  // caller's `next` state (ReviewState is entered with next:'menu'
+  // from both victory and defeat, main.py:1036-1038, 1147-1149).
+  // NOTE: buttons copy the M13 PasswordChange contract: fixed
+  // rects (no canvas measurement), same handleInput shape, and a
+  // Node-testable module surface.
+  // =========================================================
+  function analyzeReviewErrors(wrongAnswers) {
+    var patterns = { operation_errors: {}, common_mistakes: [], suggestions: [] };
+    var list = Array.isArray(wrongAnswers) ? wrongAnswers : [];
+    if (!list.length) return patterns;
+    var i, k, op;
+    for (i = 0; i < list.length; i++) {
+      op = (list[i] && list[i].operation) || 'unknown';
+      patterns.operation_errors[op] = (patterns.operation_errors[op] || 0) + 1;
+    }
+    var top = null, topN = 0;
+    for (k in patterns.operation_errors) {
+      if (patterns.operation_errors[k] > topN) { topN = patterns.operation_errors[k]; top = k; }
+    }
+    if (top !== null) {
+      patterns.common_mistakes.push('Ban thuong nham lan voi ' + top);
+      patterns.suggestions.push('Hay luyen tap them cac bai ' + top + ' de cai thien');
+    }
+    if (list.length >= 5) patterns.suggestions.push('REVIEW_SUG_5');
+    else if (list.length >= 3) patterns.suggestions.push('REVIEW_SUG_3');
+    else patterns.suggestions.push('REVIEW_SUG_1');
+    return patterns;
+  }
+  function ReviewState() {
+    this.name = 'review';
+    this.wrongAnswers = [];
+    this.lessonTitle = '';
+    this.nextState = 'menu';
+    this.patterns = analyzeReviewErrors([]);
+    this.continueBtn = { x: 525, y: 680, w: 250, h: 60 };
+    this.practiceBtn = { x: 525, y: 600, w: 250, h: 60 };
+    this.backBtn = { x: 20, y: 720, w: 200, h: 60 };
+  }
+  ReviewState.prototype = Object.create(Base.prototype); ReviewState.prototype.constructor = ReviewState;
+  ReviewState.prototype.enter = function (params) {
+    this.wrongAnswers = (params && params.wrongAnswers) || [];
+    this.lessonTitle = (params && params.lessonTitle) || '';
+    this.nextState = (params && params.next) || 'menu';
+    this.patterns = analyzeReviewErrors(this.wrongAnswers);
+  };
+  ReviewState.prototype.handleInput = function (input) {
+    var c = input.consumeClick ? input.consumeClick() : null;
+    if (!c) return;
+    if (hit(c, this.backBtn)) { global.Game.states.change('menu', null, 'fade'); return; }
+    if (hit(c, this.continueBtn)) { global.Game.states.change(this.nextState, null, 'fade'); return; }
+    if (this.wrongAnswers && this.wrongAnswers.length && hit(c, this.practiceBtn)) {
+      global.Game.states.change('practice', {
+        wrongAnswers: this.wrongAnswers,
+        lessonTitle: this.lessonTitle,
+        next: this.nextState
+      }, 'fade');
+    }
+  };
+  ReviewState.prototype.update = function (dt) {};
+  ReviewState.prototype.draw = function (ctx, W, H) {
+    var R = global.Game.renderer; R.clear('#f5f5fa');
+    R.text('PHAN TICH LOI SAI', W / 2, 80, { font: 'bold 40px Quicksand, sans-serif', fill: '#323250', align: 'center', baseline: 'middle' });
+    if (!this.wrongAnswers.length) {
+      R.text('KHONG CO CAU SAI', W / 2, 200, { font: '20px Quicksand, sans-serif', fill: '#329632', align: 'center', baseline: 'middle' });
+    } else {
+      var i, y;
+      R.text('So cau sai: ' + this.wrongAnswers.length, W / 2, 150, { font: '20px Quicksand, sans-serif', fill: '#c83232', align: 'center', baseline: 'middle' });
+      y = 220;
+      for (i = 0; i < this.patterns.common_mistakes.length && y < 300; i++, y += 40) {
+        R.text('XEMLOI ' + this.patterns.common_mistakes[i], W / 2, y, { font: '20px Quicksand, sans-serif', fill: '#c86400', align: 'center', baseline: 'middle' });
+      }
+      y += 20;
+      for (i = 0; i < this.patterns.suggestions.length && y < 340; i++, y += 35) {
+        R.text('GOIY ' + this.patterns.suggestions[i], W / 2, y, { font: '18px Quicksand, sans-serif', fill: '#326496', align: 'center', baseline: 'middle' });
+      }
+      y += 30;
+      R.text('Cac cau sai can on tap:', W / 2, y, { font: '20px Quicksand, sans-serif', fill: '#505064', align: 'center', baseline: 'middle' });
+      y += 40;
+      var show = this.wrongAnswers.slice(0, 3);
+      for (i = 0; i < show.length; i++, y += 60) {
+        var w = show[i] || {};
+        R.text((i + 1) + '. ' + String(w.question || ''), 150, y, { font: '18px Quicksand, sans-serif', fill: '#3c3c3c', baseline: 'middle' });
+        R.text('Ban: ' + String(w.userAnswer || '') + ' | Dung: ' + String(w.correctAnswer || ''), 150, y + 25, { font: '16px Quicksand, sans-serif', fill: '#c83232', baseline: 'middle' });
+      }
+    }
+    drawButton(R, this.continueBtn, 'TIEP TUC', GREEN);
+    if (this.wrongAnswers && this.wrongAnswers.length) {
+      // main.py:1416-1417 — practice entry is only drawn when errors exist
+      drawButton(R, this.practiceBtn, 'LUYEN TAP LAI', BLUE);
+    }
+    drawButton(R, this.backBtn, 'QUAY LAI', RED);
+  };
+
+  // =========================================================
+  // PRACTICE STATE  (main.py:1220-1323) — "LUYỆN TẬP LẠI"
+  // M15-B1/B2: re-asks at most the first 3 wrong answers
+  // (main.py:1223 wrong_answers[:3]). Question text and correct
+  // answer are preserved; distractors are numeric neighbours for
+  // numeric answers and A/B/C otherwise (main.py:1243-1247).
+  // Completion reports through the victory screen like
+  // main.py:1283. HỦY (main.py:1232) returns to review.
+  // =========================================================
+  function practiceOptions(ans) {
+    var opts = [String(ans)];
+    var num = parseFloat(ans);
+    var isNum = String(ans) !== '' && isFinite(num);
+    if (isNum) {
+      var seen = {}; seen[String(ans)] = true;
+      for (var d = 1; d <= 8 && opts.length < 4; d++) {
+        for (var s = -1; s <= 1 && opts.length < 4; s += 2) {
+          var cand = String(num + s * d);
+          if (!seen[cand]) { seen[cand] = true; opts.push(cand); }
+        }
+      }
+      var pad = 1;
+      while (opts.length < 4) { var p2 = String(num + 9 + pad); if (!seen[p2]) { seen[p2] = true; opts.push(p2); } pad++; }
+    } else {
+      var alts = ['A', 'B', 'C'];
+      for (var i = 0; i < alts.length && opts.length < 4; i++) if (opts.indexOf(alts[i]) < 0) opts.push(alts[i]);
+    }
+    for (var j = opts.length - 1; j > 0; j--) {
+      var k = Math.floor(Math.random() * (j + 1));
+      var t = opts[j]; opts[j] = opts[k]; opts[k] = t;
+    }
+    return opts.slice(0, 4);
+  }
+
+  function PracticeState() {
+    this.name = 'practice';
+    this.wrongAnswers = [];
+    this.lessonTitle = '';
+    this.nextState = 'menu';
+    this.index = 0;
+    this.correctCount = 0;
+    this.q = '';
+    this.ans = null;
+    this.buttons = [];
+    this.feedback = null;
+    this.cancelBtn = { x: 20, y: 720, w: 200, h: 60 };
+  }
+  PracticeState.prototype = Object.create(Base.prototype);
+  PracticeState.prototype.constructor = PracticeState;
+  PracticeState.prototype.enter = function (params) {
+    this.wrongAnswers = ((params && params.wrongAnswers) || []).slice(0, 3);
+    this.lessonTitle = (params && params.lessonTitle) || '';
+    this.nextState = (params && params.next) || 'menu';
+    this.index = 0;
+    this.correctCount = 0;
+    this.feedback = null;
+    this._loadCurrent();
+  };
+  PracticeState.prototype._loadCurrent = function () {
+    this.feedback = null;
+    if (this.index >= this.wrongAnswers.length) { this.q = ''; this.ans = null; this.buttons = []; return; }
+    var w = this.wrongAnswers[this.index] || {};
+    this.q = String(w.question || '');
+    this.ans = String(w.correctAnswer !== undefined && w.correctAnswer !== null ? w.correctAnswer : '');
+    var all = practiceOptions(this.ans);
+    // same 2x2 grid geometry as the lesson answer buttons (states_real.js 1191-1203)
+    this.buttons = all.map(function (o, i) {
+      return { x: 420 + (i % 2) * 240, y: 440 + Math.floor(i / 2) * 110, w: 220, h: 90, value: o, index: i };
+    });
+  };
+  PracticeState.prototype.handleInput = function (input) {
+    var c = input.consumeClick ? input.consumeClick() : null;
+    if (!c) return;
+    if (this.feedback && this.feedback.active) { this.feedback.active = false; this._advance(); return; }
+    if (hit(c, this.cancelBtn)) {
+      global.Game.states.change('review', { wrongAnswers: this.wrongAnswers, lessonTitle: this.lessonTitle, next: this.nextState }, 'fade');
+      return;
+    }
+    for (var i = 0; i < this.buttons.length; i++) {
+      var b = this.buttons[i];
+      if (hit(c, b)) {
+        var okHit = String(b.value) === String(this.ans);
+        if (okHit) this.correctCount++;
+        this.feedback = { question: this.q, correctAnswer: String(this.ans), userAnswer: String(b.value), correct: okHit, active: true };
+        return;
+      }
+    }
+  };
+  PracticeState.prototype._advance = function () {
+    this.index++;
+    if (this.index >= this.wrongAnswers.length) {
+      var total = this.wrongAnswers.length;
+      var acc = total > 0 ? (this.correctCount / total) * 100 : 100;
+      global.Game.states.change('victory', {
+        title: 'HOAN THANH LUYEN TAP!',
+        score: this.correctCount * 10,
+        lessonTitle: this.lessonTitle,
+        lessonId: 0,
+        stats: { correct: this.correctCount, total: total, accuracy: acc, avgTime: 0, wrongAnswers: this.wrongAnswers }
+      }, 'fade');
+      return;
+    }
+    this._loadCurrent();
+  };
+  PracticeState.prototype.update = function (dt) {};
+  PracticeState.prototype.draw = function (ctx, W, H) {
+    var R = global.Game.renderer;
+    R.clear('#f5f5fa');
+    R.text('LUYEN TAP LAI', W / 2, 80, { font: 'bold 40px Quicksand, sans-serif', fill: '#323250', align: 'center', baseline: 'middle' });
+    R.text('Cau ' + Math.min(this.index + 1, Math.max(this.wrongAnswers.length, 1)) + '/' + this.wrongAnswers.length, W / 2, 150, { font: '20px Quicksand, sans-serif', fill: '#646478', align: 'center', baseline: 'middle' });
+    if (this.index < this.wrongAnswers.length) {
+      R.fillRoundRect(W / 2 - 400, 220, 800, 200, 20, '#ffffff', 'rgb(100,150,200)', 3);
+      R.text(this.q, W / 2, 320, { font: 'bold 24px Quicksand, sans-serif', fill: '#282828', align: 'center', baseline: 'middle' });
+      for (var i = 0; i < this.buttons.length; i++) drawButton(R, this.buttons[i], String(this.buttons[i].value), PURPLE);
+      if (this.feedback && this.feedback.active) {
+        var fcol = this.feedback.correct ? '#16a34a' : '#dc2626';
+        R.fillRoundRect(W / 2 - 300, 300, 600, 120, 18, 'rgba(10,14,28,0.92)', fcol, 3);
+        R.text(this.feedback.correct ? 'DUNG ROI! (bam de tiep tuc)' : 'SAI ROI — bam de tiep tuc', W / 2, 340, { font: 'bold 24px Quicksand, sans-serif', fill: '#ffffff', align: 'center', baseline: 'middle' });
+        if (!this.feedback.correct) R.text('Dap an dung: ' + this.feedback.correctAnswer, W / 2, 388, { font: '18px Quicksand, sans-serif', fill: '#ffe9a8', align: 'center', baseline: 'middle' });
+      }
+    } else {
+      R.text('Ban da hoan thanh luyen tap!', W / 2, 300, { font: '20px Quicksand, sans-serif', fill: '#329632', align: 'center', baseline: 'middle' });
+    }
+    drawButton(R, this.cancelBtn, 'HUY', RED);
+  };
+
   global.SettingsState = SettingsState; global.PasswordChangeState = PasswordChangeState;
-  if (typeof module !== 'undefined' && module.exports) module.exports = { SettingsState: SettingsState, PasswordChangeState: PasswordChangeState };
+  global.ReviewState = ReviewState; global.PracticeState = PracticeState;
+  if (typeof module !== 'undefined' && module.exports) {
+    module.exports = {
+      SettingsState: SettingsState, PasswordChangeState: PasswordChangeState,
+      ReviewState: ReviewState, PracticeState: PracticeState,
+      practiceOptions: practiceOptions, analyzeReviewErrors: analyzeReviewErrors
+    };
+  }
 })(typeof window !== 'undefined' ? window : globalThis);

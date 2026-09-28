@@ -1213,15 +1213,18 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
         this.correctCount = this.gm.correctCount;
       } else {
         // M7-C: Use GameManager for combo reset
-        this.gm.onWrong();
-        this.comboStreak = 0;
-        this.wrongAnswers.push({
+        // M15-B1: also carry the full record so stats.wrongAnswers carries the
+        // lesson's own transcript (game_manager.py 107 + LessonState 1218-1224).
+        var _rec = {
           question: this.q,
           userAnswer: String(opt.value),
           correctAnswer: String(this.ans),
           operation: this.op || 'unknown',
           lesson: this.title
-        });
+        };
+        this.gm.onWrong(_rec);
+        this.comboStreak = 0;
+        this.wrongAnswers.push(_rec);
       }
       this.feedback = {
         question: this.q,
@@ -1613,7 +1616,14 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
         // Python main.py:1143 → MenuState
         global.Game.states.change('menu', null, 'fade');
       } else if (hit(click, this.reviewBtn.x, this.reviewBtn.y, this.reviewBtn.w, this.reviewBtn.h)) {
-        L.info('[Victory] Xem lỗi — ReviewState sẽ port ở M8');
+        // M15-B1: Desktop parity main.py:1144-1149 — Xem lỗi opens
+        // ReviewState(wrong_answers, lesson_title, on_continue) instead of the
+        // old console-only stub. main.py:1147-1148 routes continue back to menu.
+        global.Game.states.change('review', {
+          wrongAnswers: (this.stats && this.stats.wrongAnswers) || [],
+          lessonTitle: this.lessonTitle || '',
+          next: 'menu'
+        }, 'fade');
       }
     }
 
@@ -1744,7 +1754,14 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
       } else if (hit(click, this.homeBtn.x, this.homeBtn.y, this.homeBtn.w, this.homeBtn.h)) {
         global.Game.states.change('menu', null, 'fade');
       } else if (hit(click, this.reviewBtn.x, this.reviewBtn.y, this.reviewBtn.w, this.reviewBtn.h)) {
-        L.info('[Defeat] Xem lỗi — ReviewState sẽ port ở M8');
+        // M15-B1: Desktop parity main.py:1033-1038 — Xem lỗi opens
+        // ReviewState(wrong_answers, lesson_title, on_continue); main.py:1036-1037
+        // routes continue back to menu.
+        global.Game.states.change('review', {
+          wrongAnswers: (this.stats && this.stats.wrongAnswers) || [],
+          lessonTitle: this.lessonTitle || '',
+          next: 'menu'
+        }, 'fade');
       }
     }
 

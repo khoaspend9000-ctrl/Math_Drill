@@ -207,6 +207,39 @@ check('T15 Full flow: 5/15 correct → Defeat, no gold', function () {
   assert.strictEqual(player.gold, goldBefore, 'no gold on defeat');
 });
 
+// ---- M15-B1: the defeat result must include the lesson's own wrong answers --
+check('T16 onWrong carries the lesson record into the session transcript', function () {
+  var player = new PlayerData();
+  var gm = new GameManager(player);
+  gm.totalQuestions = 3;
+  var rec = {
+    question: '2 + 2 = ?',
+    userAnswer: '3',
+    correctAnswer: '4',
+    operation: 'add',
+    lesson: 'B_1'
+  };
+  gm.onCorrect();
+  gm.advanceQuestion();
+  gm.onWrong(rec);
+  gm.advanceQuestion();
+  gm.onCorrect();
+  var result = gm.advanceQuestion();
+  assert.strictEqual(result.finished, true);
+  assert.strictEqual(result.stats.wrongAnswers.length, 1);
+  assert.deepStrictEqual(result.stats.wrongAnswers[0], rec);
+});
+
+check('T17 onWrong() with no record still only resets combo', function () {
+  var player = new PlayerData();
+  var gm = new GameManager(player);
+  gm.totalQuestions = 1;
+  gm.onWrong();
+  var result = gm.advanceQuestion();
+  assert.strictEqual(result.finished, true);
+  assert.deepStrictEqual(result.stats.wrongAnswers, []);
+});
+
 console.log('M7-D VictoryDefeat: pass=' + pass + ' fail=' + failed);
 process.exit(failed ? 1 : 0);
 // ---- Retry Creates New Session ----
