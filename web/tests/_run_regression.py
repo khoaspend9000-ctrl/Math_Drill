@@ -18,6 +18,7 @@ test_suites = [
     'm15_review_practice.test.js','m15_question_variety.test.js',
     'm15_weak_topics.test.js','m15_progress_clarity.test.js',
     'm15_theory_quality.test.js',
+    'm15_ux_consistency.test.js',
 ]
 
 def first(pattern, text, flags=0):

@@ -714,7 +714,13 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
         const c = this.cards[i];
         if (!hit(click, c.x, c.y, c.w, c.h)) continue;
         if (c.locked) {
-          this.examMsg = c.label + ' sẽ mở ở ' + c.locked + ' 🔒';
+          /* M15-D1 REPRODUCED: the card said "sẽ mở ở M7" / "M10", which are
+             developer milestone labels, not milestones a child can act on. The
+             build genuinely cannot deliver either mode, so the honest fix is
+             player-meaningful wording that promises no date and no version.
+             Desktop (main.py:1743) does implement TimeAttackState, so this is a
+             port gap, not a design decision — see M15_REQUIREMENTS D1. */
+          this.examMsg = c.label + ' đang được xây dựng. Hãy chơi các bài bình thường nhé!';
           this.examMsgTimer = 2.5;
           L.info('[Menu] locked card:', c.id, '→', c.locked);
           return;
@@ -1322,6 +1328,28 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
       if (key && this.feedback && this.feedback.active
           && (key.key === ' ' || key.key === 'Spacebar' || key.key === 'Enter' || key.key === 'NumpadEnter')) {
         this._dismissFeedback();
+        return;
+      }
+      /* M15-D2 REPRODUCED: the lesson screen could not be played with the
+         keyboard. The only key handling was Space/Enter to dismiss the
+         feedback overlay, so a desktop player had to reach for the mouse
+         for every answer while LoginState already used consumePressedKey.
+         FIX: the digit row answers the matching option button (1-4, numpad
+         included), in the same top-to-bottom order the buttons are drawn. */
+      if (key) {
+        const k = String(key.key);
+        const digit = /^Digit([1-4])$/.test(k) ? k.slice(5)
+          : /^Numpad([1-4])$/.test(k) ? k.slice(6)
+            : /^[1-4]$/.test(k) ? k : null;
+        if (digit) {
+          const idx = parseInt(digit, 10) - 1;
+          // Ignore digits while feedback is up: that answer is already given.
+          if (!(this.feedback && this.feedback.active)
+              && this.buttons && idx < this.buttons.length) {
+            this._onOptionClick(this.buttons[idx]);
+          }
+          return;
+        }
       }
     }
 
@@ -1399,6 +1427,11 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
         for (let i = 0; i < this.buttons.length; i++) {
           const b = this.buttons[i];
           drawBtn(R, b.x, b.y, b.w, b.h, b.value, PURPLE_BTN, { fontSize: 24 });
+        // M15-D2: number the answers so the keyboard shortcut is visible.
+        R.text(String(i + 1), b.x + 22, b.y + b.h / 2, {
+          font: 'bold 22px Quicksand, sans-serif', fill: 'rgba(255,255,255,0.85)',
+          align: 'center', baseline: 'middle'
+        });
         }
         // Feedback overlay (rút gọn FeedbackOverlay — polish ở M8)
         if (this.feedback && this.feedback.active) {
