@@ -163,6 +163,82 @@
       const stats = this.user_stats[user_id];
       return stats.recent_streak >= 5 && (stats.correct / stats.total) > 0.8;
     }
+
+    // =========================================================
+    // M15-B3 — surface the data we already collect.
+    // ---------------------------------------------------------
+    // REPRODUCED: update_user_performance has always maintained
+    // stats.lesson_performance, but nothing could READ it — the
+    // AdaptiveDifficulty public surface was only {user_stats,
+    // base_difficulty} + difficulty getters. The app therefore had
+    // per-lesson accuracy and could not tell a child (or the
+    // reviewer) which lessons to practise.
+    // FIX: add read-only accessors over the existing data. No new
+    // state, no change to the difficulty formula, so the Desktop
+    // parity behaviour of get_user_difficulty is untouched.
+    // =========================================================
+
+    // Accuracy of one lesson, or null when never attempted.
+    get_lesson_accuracy(user_id, lesson_id) {
+      if (!(user_id in this.user_stats)) return null;
+      const lp = this.user_stats[user_id].lesson_performance;
+      if (!(lesson_id in lp)) return null;
+      const s = lp[lesson_id];
+      if (!s || s.total === 0) return null;
+      return s.correct / s.total;
+    }
+
+    // Every attempted lesson, weakest first. `min_total` suppresses
+    // lessons with too little evidence to judge.
+    get_lesson_breakdown(user_id, min_total) {
+      if (!(user_id in this.user_stats)) return [];
+      const min = typeof min_total === 'number' ? min_total : 1;
+      const lp = this.user_stats[user_id].lesson_performance;
+      const out = [];
+      const self = this;
+      Object.keys(lp).forEach(function (key) {
+        const s = lp[key];
+        if (!s || s.total < min) return;
+        out.push({
+          lesson_id: parseInt(key, 10),
+          correct: s.correct,
+          total: s.total,
+          accuracy: s.correct / s.total
+        });
+      });
+      out.sort(function (a, b) {
+        if (a.accuracy !== b.accuracy) return a.accuracy - b.accuracy;
+        return a.lesson_id - b.lesson_id;
+      });
+      return out;
+    }
+
+    // The lessons most worth practising: lowest accuracy first, and
+    // only genuinely weak ones (below `threshold` with enough
+    // evidence). Returns [] when the child has no weak lessons, so a
+    // caller can show a positive message instead of a to-do list.
+    get_weak_lessons(user_id, opts) {
+      const o = opts || {};
+      const threshold = typeof o.threshold === 'number' ? o.threshold : 0.7;
+      const min_total = typeof o.min_total === 'number' ? o.min_total : 3;
+      const limit = typeof o.limit === 'number' ? o.limit : 3;
+      return this.get_lesson_breakdown(user_id, min_total)
+        .filter(function (r) { return r.accuracy < threshold; })
+        .slice(0, limit);
+    }
+
+    // One-line guidance used by the Review screen (B1) and Profile.
+    get_recommendation(user_id, opts) {
+      const weak = this.get_weak_lessons(user_id, opts);
+      if (!weak.length) return null;
+      const w = weak[0];
+      const pct = Math.round(w.accuracy * 100);
+      if (weak.length === 1) {
+        return 'Ban nen on lai Bai ' + w.lesson_id + ' (dung ' + pct + '%)';
+      }
+      return 'Ban nen on lai Bai ' + w.lesson_id
+        + ' va Bai ' + weak[1].lesson_id + ' (dung ' + pct + '%)';
+    }
   }
   const adaptive_difficulty = new AdaptiveDifficulty();
 

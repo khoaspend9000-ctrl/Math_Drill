@@ -110,12 +110,48 @@
     return Math.floor(lessonIndex) * 6 + 1;
   }
 
+  // M15-C2 — "you are 12 lessons away".
+  // REPRODUCED: M14-D2 puts a "Lv469" tag on a locked lesson, which tells the
+  // child the gate but not how far away it is, and LessonSelect drew no
+  // progress at all. The unlock formula is untouched (Desktop parity); this is
+  // display-only arithmetic over data the game already has.
+  function nextUnlockProgress(playerLevel, totalLessons) {
+    var level = Math.max(1, Math.floor(playerLevel) || 1);
+    var unlocked = getUnlockedCount(level);
+    var total = (typeof totalLessons === 'number' && totalLessons > 0)
+      ? Math.floor(totalLessons) : null;
+    var nextLesson = unlocked + 1;
+    var needLevel = requiredLevelForLesson(nextLesson - 1);
+    var levelsNeeded = Math.max(0, needLevel - level);
+    var lessonsToUnlock = (total !== null && nextLesson <= total)
+      ? (nextLesson - unlocked) : null;
+    return {
+      level: level, unlocked: unlocked, next_lesson: nextLesson,
+      required_level: needLevel, levels_needed: levelsNeeded,
+      lessons_to_unlock: lessonsToUnlock,
+      all_unlocked: (total !== null && unlocked >= total)
+    };
+  }
+
+  // XP still required to reach targetLevel, summed over the Desktop
+  // get_required_exp curve (player.py:10-25).
+  function expToReachLevel(currentLevel, currentExp, targetLevel, requiredExpFn) {
+    var lvl = Math.max(1, Math.floor(currentLevel) || 1);
+    var tgt = Math.max(lvl, Math.floor(targetLevel) || lvl);
+    if (typeof requiredExpFn !== 'function') return null;
+    var need = 0;
+    for (var i = lvl; i < tgt; i++) need += requiredExpFn(i);
+    return Math.max(0, need - (Math.max(0, currentExp) || 0));
+  }
+
   var DataLoader = {
     loadAll: loadAll,
     getLessonsForGrade: getLessonsForGrade,
     isLessonUnlocked: isLessonUnlocked,
     getUnlockedCount: getUnlockedCount,
-    requiredLevelForLesson: requiredLevelForLesson
+    requiredLevelForLesson: requiredLevelForLesson,
+    nextUnlockProgress: nextUnlockProgress,
+    expToReachLevel: expToReachLevel,
   };
 
   global.DataLoader = DataLoader;

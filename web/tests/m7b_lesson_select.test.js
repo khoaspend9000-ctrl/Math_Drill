@@ -215,10 +215,20 @@ check('T25 a player at level 469 sees lesson 79 unlocked (no padlock on page 9 t
   var dl = require('../js/data_loader.js');
   assert.strictEqual(dl.isLessonUnlocked(78, 469), true);
   var texts = drawLessonSelectPage(469, 3, 9, 'Bai');
-  var tile = texts.filter(function (t) { return t.indexOf('Lv475') >= 0; });
-  assert.strictEqual(tile.length, 1, 'lesson 80 still locked at level 469 -> Lv475 shown');
-  assert.ok(texts.every(function (t) { return t.indexOf('Lv469') < 0; }),
-    'lesson 79 is unlocked at level 469 and must not show the locked label');
+  /* M15-C2 added a progress header that legitimately mentions the next gate
+     ("Bai 80 mo o Lv475"), so counting raw "Lv" matches would double-count.
+     Scope these assertions to TILE labels: a locked tile always starts with
+     the padlock affordance, the header never does. */
+  var tileLabels = texts.filter(function (t) { return t.indexOf('\u{1F512}') >= 0; });
+  var locked475 = tileLabels.filter(function (t) { return t.indexOf('Lv475') >= 0; });
+  assert.strictEqual(locked475.length, 1,
+    'exactly one locked tile (lesson 80) on page 9 at level 469 -> got ' + JSON.stringify(locked475));
+  var locked469 = tileLabels.filter(function (t) { return t.indexOf('Lv469') >= 0; });
+  assert.strictEqual(locked469.length, 0,
+    'lesson 79 is unlocked at level 469 and must not be a locked tile: ' + JSON.stringify(locked469));
+  // The header must still tell the player where the next lock is.
+  assert.ok(texts.some(function (t) { return t.indexOf('Lv475') >= 0 && t.indexOf('\u{1F512}') < 0; }),
+    'M15-C2 progress header should mention the next gate Lv475: ' + JSON.stringify(texts));
 });
 
 /* ---- M14-C1: theory lookup must not silently fall back to the placeholder ----

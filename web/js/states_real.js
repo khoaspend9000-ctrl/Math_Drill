@@ -1038,6 +1038,24 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
       R.text('KHỐI LỚP ' + this.grade, W2 / 2, 80, {
         font: 'bold 40px Quicksand, sans-serif', fill: '#20242e', align: 'center', baseline: 'middle'
       });
+      // M15-C2 — progress toward the next unlock. M14-D2 showed the gate
+      // level on the tile; this tells the child how far away it is, and how
+      // many XP still separate them from it. Display only — the unlock
+      // formula itself is unchanged (Desktop parity main.py:690/941).
+      try {
+        var _pd = getPlayer();
+        var _total = (this.lessons && this.lessons.length) || null;
+        var _pg = DataLoader.nextUnlockProgress(_pd.level, _total);
+        var _line = _pg.all_unlocked
+          ? ("Da mo het " + _pg.unlocked + "/" + _total + " bai")
+          : ("Da mo " + _pg.unlocked + (
+              _total ? ("/" + _total) : "") + " bai  |  Bai " + _pg.next_lesson
+              + " mo o Lv" + _pg.required_level
+              + " (con " + _pg.levels_needed + " level)");
+        R.text(_line, W2 / 2, 112, {
+          font: '18px Quicksand, sans-serif', fill: '#2b4a2b', align: 'center', baseline: 'middle'
+        });
+      } catch (e) { /* progress is additive; never block the screen */ }
       R.fillRoundRect(60, 120, W2 - 120, H2 - 210, 18, 'rgba(255,255,255,0.55)', null, 0);
       if (this.dataMissing) {
         R.text('Dữ liệu bài học chưa được tải.', W2 / 2, H2 / 2 - 30, {

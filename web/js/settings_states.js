@@ -128,6 +128,22 @@
     this.lessonTitle = (params && params.lessonTitle) || '';
     this.nextState = (params && params.next) || 'menu';
     this.patterns = analyzeReviewErrors(this.wrongAnswers);
+    // M15-B3 — the app has always recorded per-lesson accuracy but could
+    // never read it back. Now that AdaptiveDifficulty exposes weak lessons,
+    // show the child what to revise instead of only listing today's errors.
+    this.weakLessons = [];
+    this.recommendation = '';
+    var ad = global.adaptive_difficulty;
+    var uid = (global.Game && global.Game.player && global.Game.player.username) || null;
+    if (ad && typeof ad.get_weak_lessons === 'function' && uid) {
+      try {
+        this.weakLessons = ad.get_weak_lessons(uid) || [];
+        this.recommendation = ad.get_recommendation(uid) || '';
+      } catch (e) {
+        this.weakLessons = [];
+        this.recommendation = '';
+      }
+    }
   };
   ReviewState.prototype.handleInput = function (input) {
     var c = input.consumeClick ? input.consumeClick() : null;
@@ -175,6 +191,19 @@
       drawButton(R, this.practiceBtn, 'LUYEN TAP LAI', BLUE);
     }
     drawButton(R, this.backBtn, 'QUAY LAI', RED);
+    // M15-B3 — weak-topic strip: the lessons this child is worst at,
+    // drawn above the fixed buttons so it never overlaps them.
+    if (this.weakLessons && this.weakLessons.length) {
+      var wy = this.continueBtn.y - 34, wi;
+      R.text('NEU YEU: ' + this.recommendation, W / 2, wy,
+        { font: 'bold 18px Quicksand, sans-serif', fill: '#b06a00', align: 'center', baseline: 'middle' });
+      for (wi = 0; wi < this.weakLessons.length && wi < 3; wi++, wy -= 26) {
+        var wk = this.weakLessons[wi];
+        R.text('Bai ' + wk.lesson_id + ' dung ' + wk.correct + '/' + wk.total
+          + ' (' + Math.round(wk.accuracy * 100) + '%)', W / 2, wy,
+          { font: '16px Quicksand, sans-serif', fill: '#7a5a20', align: 'center', baseline: 'middle' });
+      }
+    }
   };
 
   // =========================================================
