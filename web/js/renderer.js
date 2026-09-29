@@ -82,6 +82,37 @@
       }
     }
 
+    /* M22: translucent round-rect layer. Desktop Button.draw composites its shadow,
+       top highlight and glow onto SRCALPHA surfaces and blits them; the canvas
+       equivalent is a fill at globalAlpha, so this saves/restores the context
+       around it exactly like fillRoundRect does for the opaque case. */
+    fillRoundRectAlpha(x, y, w, h, r, fill, alpha) {
+      const ctx = this.ctx;
+      if (!ctx || !fill || !(alpha > 0)) return;
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      this.roundRectPath(x, y, w, h, r);
+      ctx.fillStyle = fill;
+      ctx.fill();
+      ctx.restore();
+    }
+
+    /* M22: translucent OUTLINE. Desktop game_init.py:3949 draws the resting button
+       border with pygame.draw.rect(..., width=2, border_radius=20), which strokes
+       only the outline. Painting it as a fill would wash the whole body out, so the
+       two must stay separate. */
+    strokeRoundRectAlpha(x, y, w, h, r, stroke, alpha, lineWidth) {
+      const ctx = this.ctx;
+      if (!ctx || !stroke || !(alpha > 0)) return;
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      this.roundRectPath(x, y, w, h, r);
+      ctx.strokeStyle = stroke;
+      ctx.lineWidth = lineWidth || 2;
+      ctx.stroke();
+      ctx.restore();
+    }
+
     text(str, x, y, opts) {
       const ctx = this.ctx;
       const o = opts || {};

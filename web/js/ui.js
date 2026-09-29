@@ -52,6 +52,12 @@
     setDisabled(d) { this.disabled = !!d; if (this.disabled) this.hovered = false; return this.disabled; }
     draw(R) {
       if (!R || typeof R.fillRoundRect !== 'function') return;
+      /* M22: faithful port of the four Desktop draw layers that were missing.
+         Values are taken from game_init.py Button.draw (3858-3949) verbatim.
+         Already present and therefore left alone: scale (1+hover*0.01)*clickScale
+         (3910), the int(hover*8) upward lift (3914), _lerp_brightness = +50 per
+         channel (3874), border_radius=20 (3929), and the smooth Lerp speeds in
+         update() (0.20 hover, glowPhase += 0.05, clickScale 0.08). */
       var s = (1.0 + this.hoverAnim * 0.01) * this.clickScale;
       var w = Math.max(1, Math.round(this.rect.w * s));
       var h = Math.max(1, Math.round(this.rect.h * s));
@@ -59,7 +65,56 @@
       var c = this.color, b = Math.round(this.hoverAnim * 50);
       var fill = this.disabled ? '#888888' : 'rgb(' + Math.min(255, c[0] + b) + ',' + Math.min(255, c[1] + b) + ',' + Math.min(255, c[2] + b) + ')';
       var pressDrop = this.pressed > 0 ? 3 : 0;
-      R.fillRoundRect(Math.round(cx - w / 2), Math.round(cy - h / 2 - this.hoverAnim * 8 + pressDrop), w, h, 20, fill, null, 0);
+      var dx = Math.round(cx - w / 2);
+      var dy = Math.round(cy - h / 2 - this.hoverAnim * 8 + pressDrop);
+      var alpha = R.fillRoundRectAlpha ? R.fillRoundRectAlpha.bind(R) : null;
+
+      /* (1) Shadow - always present. game_init.py:3919-3927:
+             shadow_offset = _smooth_lerp(6.0, 10.0, hover*0.3)  -> 6..10
+             shadow_alpha  = int(70 + hover*50)                  -> 70..120
+             radius 25, blitted at (rect.x-5, shadow_rect.y-5) */
+      if (alpha) {
+        var shOff = 6.0 + (10.0 - 6.0) * (this.hoverAnim * 0.3);
+        var shA = (70 + this.hoverAnim * 50) / 255;
+        alpha(this.rect.x - 5, this.rect.y - 5 + Math.round(shOff), this.rect.w + 10, this.rect.h + 10, 25, '#000000', shA);
+      }
+      /* (2) Body - game_init.py:3929 */
+      R.fillRoundRect(dx, dy, w, h, 20, fill, null, 0);
+      /* (3) Top highlight - game_init.py:3930-3937:
+             Rect(draw_x+5, draw_y+2, draw_w-10, draw_h//4),
+             highlight_alpha = int(30 + hover*20) -> 30..50, radius 20 */
+      if (alpha && h > 10) {
+        var hA = (30 + this.hoverAnim * 20) / 255;
+        alpha(dx + 5, dy + 2, Math.max(0, w - 10), Math.floor(h / 4), 20, '#ffffff', hA);
+      }
+      /* (4) Glow border on hover - game_init.py:3938-3945:
+             only when hover_anim > 0.1
+             glow_alpha = int(hover*180); glow_pulse = int(sin(glow_phase)*40 + 40)
+             4px stroke, radius 22, drawn at (draw_x-3, draw_y-3) */
+      if (this.hoverAnim > 0.1 && R.fillRoundRect) {
+        /* (4) Glow border on hover - game_init.py:3938-3945:
+               only when hover_anim > 0.1
+               glow_alpha = int(hover*180); glow_pulse = int(sin(glow_phase)*40 + 40)
+               4px stroke, radius 22, drawn at (draw_x-3, draw_y-3) */
+        var gA = this.hoverAnim * 180;
+        var gP = Math.sin(this.glowPhase) * 40 + 40;
+        var gAlpha = Math.min(255, gA + gP) / 255;
+        var gc = R.ctx;
+        if (gc && typeof gc.save === 'function') {
+          gc.save();
+          gc.globalAlpha = gAlpha;
+          R.fillRoundRect(dx - 3, dy - 3, w + 6, h + 6, 22, null, 'rgb(255,255,255)', 4);
+          gc.restore();
+        } else {
+          R.fillRoundRect(dx - 3, dy - 3, w + 6, h + 6, 22, null, 'rgb(255,255,255)', 4);
+        }
+      } else if (R.fillRoundRect) {
+        /* (5) Resting white border - game_init.py:3946-3949:
+               border_alpha = int(80 * (1 - hover*0.5)), width 2, radius 20.
+               This is an OUTLINE (pygame width=2), not a fill. */
+        var bA = Math.round(80 * (1.0 - this.hoverAnim * 0.5)) / 255;
+        if (R.strokeRoundRectAlpha) R.strokeRoundRectAlpha(dx, dy, w, h, 20, '#ffffff', bA, 2);
+      }
       if (typeof R.text === 'function' && this.text) R.text(String(this.text), cx, cy, { align: 'center', baseline: 'middle' });
     }
   }
@@ -288,7 +343,10 @@
       this.index = 0;
       this.flipping = false;
       this.flipT = 0;
-      this.flipDur = (typeof o.flipDur === 'number' && o.flipDur > 0) ? o.flipDur : 0.35;
+      /* Desktop game_init.py:4382 animates flip_progress at dt * 3.0, so progress
+         reaches 1.0 in 1/3 s = 0.3333s. The previous 0.35 default was a
+         hand-rounded approximation; use the source value. */
+      this.flipDur = (typeof o.flipDur === 'number' && o.flipDur > 0) ? o.flipDur : (1 / 3);
       this.flipDir = 0;
       this.rect = { x: o.x || 150, y: o.y || 100, w: o.w || 1000, h: o.h || 600 };
       this.nextRect = { x: this.rect.x + this.rect.w - 140, y: this.rect.y + this.rect.h - 70, w: 110, h: 44 };
@@ -388,6 +446,25 @@
     }
     get coverInnerRect() {
       return { x: this.rect.x - 8, y: this.rect.y - 8, w: this.rect.w + 16, h: this.rect.h + 16 };
+    }
+    /* ---- M22: Desktop page-turn trigger ------------------------------
+       Desktop game_init.py:4376 start_flip(flip_type) sets flip_active=True and
+       resets flip_progress to 0.0 for "slide_left" / "slide_right". The Web class
+       had the curl maths but no way to trigger it, so nothing ever turned a page.
+       startFlip is the exact contract of start_flip.
+       Measured fact worth recording: Desktop's own main.py never calls start_flip
+       and never passes with_transition=True at any of its 10 book.draw() sites, so
+       the animation is dormant in the original game. It is ported here exactly as
+       written and wired to the one genuine book-page navigation (LessonSelect page
+       turns), which is the closest Desktop-equivalent action. */
+    startFlip(flipType) {
+      var t = (flipType === 'slide_right') ? 'slide_right' : 'slide_left';
+      this.flipping = true;
+      this.flipT = 0;
+      this.flipDir = (t === 'slide_right') ? -1 : 1;
+      this.flipType = t;
+      this._target = null;
+      return t;
     }
     /* flipProgress 0->1 maps to game_init.py flip_progress (animated at dt*3.0 =
        ~0.33s, i.e. flipDur 0.35 below). flipActive maps to flip_active. */

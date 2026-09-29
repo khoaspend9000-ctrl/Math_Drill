@@ -1187,12 +1187,17 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
       if (hit(click, this.nextBtn.x, this.nextBtn.y, this.nextBtn.w, this.nextBtn.h)
           && this.currentPage < this.totalPages - 1) {
         this.currentPage += 1;
+        // M22: a page turn is the one place the Desktop book curls. "SAU" moves
+        // forward, so the left page contracts toward the spine -> slide_left.
+        if (this._rbBook) this._rbBook.startFlip('slide_left');
         L.info('[LessonSelect] page', this.currentPage + 1, '/', this.totalPages);
         return;
       }
       if (hit(click, this.prevBtn.x, this.prevBtn.y, this.prevBtn.w, this.prevBtn.h)
           && this.currentPage > 0) {
         this.currentPage -= 1;
+        // "TRUOC" goes back: the right page contracts toward the spine.
+        if (this._rbBook) this._rbBook.startFlip('slide_right');
         return;
       }
       const startIdx = this.currentPage * this.itemsPerPage;
