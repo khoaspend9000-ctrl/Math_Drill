@@ -195,6 +195,60 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
     if (!global.Game.player) global.Game.player = createPlayer('BẠN', 1);
     return global.Game.player;
   }
+
+  /* M19: port of Desktop game_init.py:3549 draw_top_bar - the in-lesson HUD the
+     web was missing entirely. Source constants:
+       TOP_BAR_H = 70, MARGIN = 20, FONT_SIZES.button = 18
+       bar gradient scanlines (30,35,60, alpha 220 -> 110 top to bottom)
+       inner border (255,255,255,40) w2
+       "👤 {USER}"      20px (240,240,255) at (20,12)
+       "LEVEL n | Lớp g" 16px (180,200,255) at (20,40)
+       "Vàng: g"        16px (255,225,120) at (220,40)
+     Desktop returns early when there is no signed-in user; the web mirrors that
+     so a guest lesson screen is not decorated with a default player. */
+  const TOP_BAR_H = 70;
+  function drawTopBar(R, ctx, W2, comboStreak) {
+    // main.js:124 stores the AccountSystem instance on Game.auth, and its
+    // signed-in name on the currentUser PROPERTY (auth.js:229, null when signed
+    // out). The username the rest of the web renders from is the player record
+    // (createPlayer -> pd.username), which the Menu already displays, so read
+    // both and prefer the live session.
+    const acct = global.Game && global.Game.auth;
+    const p = getPlayer();
+    const name = (acct && acct.currentUser) || p.username;
+    if (!name) return false;
+    // Gradient bar (30,35,60) fading 220 -> 110 alpha, then a translucent edge.
+    if (ctx && typeof ctx.createLinearGradient === 'function') {
+      const g = ctx.createLinearGradient(0, 0, 0, TOP_BAR_H);
+      g.addColorStop(0, 'rgba(30,35,60,0.863)');   // 220/255
+      g.addColorStop(1, 'rgba(30,35,60,0.431)');   // 110/255
+      ctx.save();
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, W2, TOP_BAR_H);
+      ctx.restore();
+    } else {
+      R.fillRoundRect(0, 0, W2, TOP_BAR_H, 0, 'rgba(30,35,60,0.7)', null, 0);
+    }
+    R.fillRoundRect(0, 0, W2, TOP_BAR_H, 0, null, 'rgba(255,255,255,0.157)', 2);
+    R.text('👤 ' + String(name).toUpperCase(), 20, 12, {
+      font: '20px Quicksand, Segoe UI Emoji, sans-serif', fill: 'rgb(240,240,255)', baseline: 'top'
+    });
+    R.text('LEVEL ' + p.level + ' | Lớp ' + (p.grade || 1), 20, 40, {
+      font: '16px Quicksand, sans-serif', fill: 'rgb(180,200,255)', baseline: 'top'
+    });
+    R.text('Vàng: ' + p.gold, 220, 40, {
+      font: '16px Quicksand, sans-serif', fill: 'rgb(255,225,120)', baseline: 'top'
+    });
+    // Centre combo streak, only when Desktop would show one (streak >= 3).
+    const label = comboText(comboStreak);
+    if (label) {
+      R.text(label, W2 / 2, TOP_BAR_H / 2, {
+        font: 'bold 20px Quicksand, Segoe UI Emoji, sans-serif',
+        fill: css(comboColor(comboStreak)), align: 'center', baseline: 'middle'
+      });
+    }
+    return true;
+  }
   // M7-C: ensure GameManager ctor is available in both browser (script tags)
   // and Node (require). states_real has no hard require to keep index.html
   // script-tag loading order independent.
@@ -1544,6 +1598,9 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
       } else {
         R.clear('#1e2840');   // Desktop fallback main.py:1634
       }
+      // Desktop main.py:1636 draw_top_bar(temp) - in-lesson HUD (level/XP/gold/
+      // combo). M19 port; previously the web had no top bar here at all.
+      drawTopBar(R, ctx, W2, this.comboStreak);
       R.text('MathDrill 5.0', W2 / 2, 40, {
         font: 'bold 30px Quicksand, sans-serif', fill: '#dbe6ff', align: 'center', baseline: 'middle'
       });
@@ -1553,6 +1610,20 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
       // Progress "Câu X/15" (Python draw_progress_bar main.py:1642)
       this._progress(R, W2 / 2 - 250, 150, 500, 24, this.cc, this.tc,
         'Câu ' + Math.min(this.cc + 1, this.tc) + '/' + this.tc);
+      /* Desktop main.py:1643-1660 knowledge-energy bar: 400x16 at
+         (WIDTH/2-200, 185), track (50,50,70) r8, fill energy_color
+         (80,180,230) - or (200,80,80) in fever mode - and the label
+         "⚡ {energy}%" at (bar_x + bar_w + 10, bar_y). M19 port. */
+      const energy = Math.max(0, Math.min(100, Number(this.energy) || 0));
+      const feverMode = !!this.feverMode;
+      const eX = W2 / 2 - 200, eY = 185, eW = 400, eH = 16;
+      const eCol = feverMode ? 'rgb(200,80,80)' : 'rgb(80,180,230)';
+      R.fillRoundRect(eX, eY, eW, eH, 8, 'rgb(50,50,70)', null, 0);
+      const eFill = Math.round(eW * (energy / 100));
+      if (eFill > 0) R.fillRoundRect(eX, eY, eFill, eH, 8, eCol, null, 0);
+      R.text('⚡ ' + energy + '%', eX + eW + 10, eY, {
+        font: '12px Quicksand, Segoe UI Emoji, sans-serif', fill: eCol, baseline: 'top'
+      });
       // Difficulty + score (Python main.py:1706-1712)
       R.text('Độ khó: ' + (this.missing ? '—' : '3/10'), W2 / 2 - 280, 240, {
         font: '16px Quicksand, sans-serif', fill: '#9ab6ff', baseline: 'middle'
@@ -1572,12 +1643,18 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
         });
       } else if (this.q) {
         // Question card 800x200 elastic scale (Python main.py:1664-1705)
+        /* M19: Desktop main.py:1869-1883 question card. Source:
+             card_w, card_h = 800, 200
+             qr.y = 200 + (card_h - draw_h)//2     <-- the web had 270
+             shadow (0,0,0,60) at (qr.x+5, qr.y+8) r30
+             body WHITE r30, border (80,150,255) w5 r30
+           The web used y=270 and radius 24, neither of which appears in source. */
         const cw = 800, ch = 200;
         const sc = Math.max(0.2, this.cardScale);
         const dw = cw * sc, dh = ch * sc;
-        const qx = W2 / 2 - dw / 2, qy = 270 + (ch - dh) / 2;
-        R.fillRoundRect(qx + 5, qy + 8, dw, dh, 24, 'rgba(0,0,0,0.25)', null, 0);
-        R.fillRoundRect(qx, qy, dw, dh, 24, '#ffffff', 'rgb(80,150,255)', 5);
+        const qx = W2 / 2 - dw / 2, qy = 200 + (ch - dh) / 2;
+        R.fillRoundRect(qx + 5, qy + 8, dw, dh, 30, 'rgba(0,0,0,0.235)', null, 0);  // 60/255
+        R.fillRoundRect(qx, qy, dw, dh, 30, '#ffffff', 'rgb(80,150,255)', 5);
         if (sc > 0.5) {
           /* Parity draw_multiline_text: question nhiều dòng, không tràn card. */
           const qMaxW = dw - 60;
@@ -1916,11 +1993,15 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
         font: 'bold 48px Quicksand, sans-serif', fill: '#d7f7df', align: 'center', baseline: 'middle'
       });
       if (!this.showUi) return;
-      const pw = 600, ph = 340, px = W2 / 2 - pw / 2, py = H2 / 2 - 80;
-      R.fillRoundRect(px, py, pw, ph, 26, 'rgba(255,255,255,0.93)', 'rgb(200,170,80)', 5);
-      R.text(this.rank, px + pw - 110, py + 50, {
-        font: 'bold 90px Quicksand, sans-serif',
-        fill: this.rank === 'S' ? 'rgb(200,170,80)' : '#c7ccd4',
+      // M19: Desktop main.py:1534-1542 VictoryState panel + rank.
+      //   panel 600x350 at (WIDTH/2-300, HEIGHT/2-80), fill (255,255,255,230),
+      //   border (200,170,80) w5 r30; rank font 100 at (panel_x+panel_w-120,
+      //   panel_y+30), colour (200,170,80) for S else (200,200,200).
+      const pw = 600, ph = 350, px = W2 / 2 - pw / 2, py = H2 / 2 - 80;
+      R.fillRoundRect(px, py, pw, ph, 30, 'rgba(255,255,255,0.902)', 'rgb(200,170,80)', 5);
+      R.text(this.rank, px + pw - 120, py + 30, {
+        font: 'bold 100px Quicksand, sans-serif',
+        fill: this.rank === 'S' ? 'rgb(200,170,80)' : 'rgb(200,200,200)',
         align: 'center', baseline: 'middle'
       });
       R.text(this.title, W2 / 2, py + 52, {
@@ -2060,8 +2141,11 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
         font: 'bold 40px Quicksand, sans-serif', fill: '#ffd9a0', align: 'center', baseline: 'middle'
       });
       if (!this.showUi) return;
-      const pw = 600, ph = 380, px = W2 / 2 - pw / 2, py = H2 / 2 - 150;
-      R.fillRoundRect(px, py, pw, ph, 24, 'rgba(45,48,68,0.95)', 'rgb(255,180,90)', 4);
+      // M19: Desktop main.py:1437-1440 DefeatState panel -
+      //   600x400 at (WIDTH/2-300, HEIGHT/2-150), fill (45,48,68,210),
+      //   border (255,180,90) w4 r30. (Desktop alpha 210/255 = 0.824.)
+      const pw = 600, ph = 400, px = W2 / 2 - pw / 2, py = H2 / 2 - 150;
+      R.fillRoundRect(px, py, pw, ph, 30, 'rgba(45,48,68,0.824)', 'rgb(255,180,90)', 4);
       R.text(this.title, W2 / 2, py + 60, {
         font: 'bold 26px Quicksand, sans-serif', fill: '#ffc86e', align: 'center', baseline: 'middle'
       });
