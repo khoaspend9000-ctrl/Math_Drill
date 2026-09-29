@@ -486,6 +486,8 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
       }
       this.createBtn = { x: 450, y: 500, w: 400, h: 70 };
       this.backBtn = { x: 450, y: 590, w: 400, h: 70 };
+      // Desktop main.py:368 RegisterState uses FallingCloverEffect(25).
+      this.cloverEffect = global.FallingClover ? new global.FallingClover(25) : null;
     }
     enter() {
       this.userInput = '';
@@ -577,7 +579,18 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
     }
     draw(ctx, W2, H2) {
       const R = global.Game.renderer;
-      R.clear('#1e2840');
+      // Desktop main.py:397-398 RegisterState.draw:
+      //   s.blit(background_img,(0,0)) if background_img else s.fill((30,40,60))
+      //   then self.clover_effect.draw(s)  (FallingCloverEffect(25), main.py:368)
+      // The web used a flat #1e2840 and drew no clover, so this screen did not
+      // look like the original at all.
+      const _regBg = global.Game.assets && global.Game.assets.get('nen_game');
+      if (_regBg && !_regBg.placeholder) {
+        R.image(_regBg, 0, 0, W2, H2);
+      } else {
+        R.clear('#1e2840');   // Desktop fallback main.py:397
+      }
+      drawClover(R, this.cloverEffect);
       const ch = global.Game.assets && global.Game.assets.get('main_character');
       if (ch && !ch.placeholder) R.image(ch, 50, 250, 400, 400);
       R.text('Đăng Ký', 450, 200, {
@@ -2333,7 +2346,7 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
     draw(ctx, W2, H2) {
       const R = global.Game.renderer;
       R.clear('#a5d6a7');
-      R.text('CỬA HÀNG SIÊU CẤP', W2 / 2, 60, {
+      R.text('CỬA HÀNG SIÊU CẤP', W2 / 2, 80, {   // Desktop main.py:2465 y=80
         font: 'bold 40px Quicksand, sans-serif', fill: '#20242e', align: 'center', baseline: 'middle'
       });
       const d = m9AccountData() || {};
@@ -3163,7 +3176,7 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
     draw(ctx, W2, H2) {
       const R = global.Game.renderer;
       R.clear('#a5d6a7');
-      R.text('🌳 CÂY KỸ NĂNG', W2 / 2, 60, {
+      R.text('🌳 CÂY KỸ NĂNG', W2 / 2, 80, {   // Desktop main.py:2562 y=80
         font: 'bold 38px Quicksand, sans-serif', fill: '#20242e', align: 'center', baseline: 'middle'
       });
       if (this.dataMissing || !this.manager) {

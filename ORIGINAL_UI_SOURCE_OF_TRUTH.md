@@ -342,6 +342,118 @@ long as they are styled with the original palette/geometry:
 - Screens not read line-by-line in this pass: `RegisterState` (366), `SettingsState` (751),
   `PasswordChangeState` (874), `PracticeState` (1220), `ReviewState` (1324),
   `TimeAttackState` (1745), `AchievementViewState` (1927), `DailyState` (2002),
+
+---
+
+## KNOWN_AUTH_SESSION_ISSUE (tracked separately; NOT a UI restoration failure)
+
+Desktop restores the session at boot via `load_session_user()` (game_init.py:5287).
+The Web has `AccountSystem.backendMe()` (auth.js:99) and the server route
+`GET /api/auth/me` (server.js:193), but **nothing calls backendMe() during boot**.
+Measured in a real browser: with a valid session cookie, after `reload()` →
+`Game.auth.currentUser === null` and `Game.player.username === ''`.
+
+Consequence: `drawTopBar` correctly renders nothing for a signed-out player, which
+is Desktop's own guard (game_init.py:3551-3552). Auth/session semantics are out of
+scope for UI restoration and were **not** modified.
+
+## M20 — the six previously uninspected states (now source-backed)
+
+### 1. RegisterState — main.py:366-413
+| Element | Source | Value |
+|---|---|---|
+| Background | 397 | `background_img` at (0,0); fallback `s.fill((30,40,60))` |
+| Clover | 368, 398 | `FallingCloverEffect(25)`, drawn 2nd |
+| Character | 372, 401 | `character_img` smoothscaled 400x400, blit (50,250) |
+| Title | 402 | "Dang Ky" WHITE font_big (450,200) |
+| Inputs | 370-371 | InputBox (450,280,400,50) and (450,350,400,50) |
+| Grade label | 405 | "Chon lop:" WHITE font_med (450,390) |
+| Grade buttons | 376 | 5x Button(450+(i-1)*90, 420, 80, 50); PURPLE_BTN when selected else ORANGE_BTN |
+| Create/Back | 378-379 | (450,500,400,70) GREEN_BTN / (450,590,400,70) RED_BTN |
+| Message | 411-413 | font_small, GREEN_BTN or RED_BTN, centred WIDTH//2+50, y=680 |
+
+**Before M20:** background was a flat `#1e2840` (Desktop draws the image) and there
+was no clover. Geometry and colours otherwise matched. The "Chon lop:" label
+overlapping the password box, and the large centred character, exist **in Desktop
+source** (label y=390 vs password box 350..400), so the Web reproduces the original
+and was deliberately not "corrected".
+
+### 2. PracticeState — main.py:1325-1428
+| Element | Source | Value |
+|---|---|---|
+| Background | 1400 | `s.fill((245,245,250))` — light, unlike the dark screens |
+| Title | 1402-1403 | "LUYEN TAP LAI" (50,50,80) centred y=80 |
+| Progress | 1405-1406 | f"Cau {i+1}/{n}" (100,100,120) centred y=150 |
+| Card | 1409-1413 | 800x200 at y=220, white, r20, border (100,150,200) w3 |
+| Answers | 1358 | 2x2 220x90, x WIDTH//2-230+(i%2)*240, y 440+(i//2)*110, PURPLE_BTN |
+| Back | 1337 | Button(20, HEIGHT-80, 200, 60) RED_BTN |
+| Cap | 1328 | wrong_answers[:3] |
+
+**Web status: EXACT_MATCH** — pixel-verified (bg [245,245,250], card white at y=220).
+
+### 3. TimeAttackState — main.py:1745-1926
+| Element | Source | Value |
+|---|---|---|
+| Clover | 1973, 1866 | FallingCloverEffect(15), drawn FIRST |
+| Background | 1869 | background_img; fallback (30,40,60) |
+| Top bar | 1870 | draw_top_bar(temp) |
+| Timer | 1872-1874 | "N s", (200,80,80) under 10s else WHITE, centred y=80 |
+| Card | 1876-1884 | 800x200, y 220+(card_h-draw_h)//2, white r30, border (255,150,50) w5 |
+| Answers | 1988-2004 | 2x2, dynamic width max(240, text_w+80), h=90, y 420+(i//2)*110, gap_x 40; (220,150,50) when combo multiplier > 1.5 else PURPLE_BTN |
+| Back | 1978 | Button(20, HEIGHT-75, 200, 60) RED_BTN |
+| Limit | 1981 | grade 1 -> lessons 1..40, else 1..60 |
+
+**Web status: NOT PORTED** — no such state; the Menu card is intentionally locked
+(M15-D1). Known functional gap, deliberately not introduced by UI work.
+
+### 4. ShopState — main.py:2273-2476
+| Element | Source | Value |
+|---|---|---|
+| Background | 2463 | s.fill((165,214,167)) + RealisticBook(50,50,1200,700) |
+| Title | 2465 | "CUA HANG SIEU CAP" BLACK font_big centred **y=80** |
+| Gold | 2469-2470 | icon + "Vang: {gold}" (180,140,40) at WIDTH-280 / WIDTH-245 |
+| Grid | 2298-2306 | 2 cols 200x72 gap 12, origin (70,190), culled outside 175..HEIGHT-120 |
+| Item colour | 2306 | pet->PURPLE_BTN, pen->BLUE_BTN, else GREEN_BTN |
+| Back | 2276 | Button(810, 600, 300, 60) RED_BTN |
+
+**Before M20:** background EXACT; **title was y=60, source y=80** — corrected.
+
+### 5. SkillTreeState — main.py:2477-2669
+| Element | Source | Value |
+|---|---|---|
+| Background | 2549 | s.fill((165,214,167)) + RealisticBook |
+| Title | 2552-2563 | tree icon + " CAY KY NANG" BLACK 50px centred **y=80** |
+| Categories | 2486-2494 | gold/time/xp/protection/combo/special, fixed colours |
+| Buttons | 2504-2510 | 240x90, x_start 100, +260 each, wrap after 950, y +100 per row |
+| Back | 2480 | Button(810, 600, 300, 60) RED_BTN |
+
+**Before M20:** background EXACT; **title was y=60, source y=80** — corrected.
+
+### 6. Exam states — main.py:3091-3139 (Transition), 3234-3286 (Result)
+| Element | Source | Value |
+|---|---|---|
+| Transition bg | 3120 | s.fill((165,214,167)) |
+| Book shrink | 3104-3110 | 1200->40 over the first 40% of a 2.5s timeline |
+| Slide | 3111-3116 | book_x to -WIDTH by 65%; paper rises after 60%, alpha 0->255, rotation 15->0 |
+| Book colour | 3124 | (101,67,33) r10 |
+| Result bg | 3252 | s.fill((44,62,80)) |
+| Certificate | 3253-3255 | Rect(W/2-500, 100, 1000, 500) fill (253,245,230) border (212,175,55) **w15** |
+| Pass text | 3256-3263 | "GIAY CHUNG NHAN" (139,69,19) y=180; user y=280; score y=380; red seal circle (850,500) r60 w4 |
+| Fail text | 3265-3266 | (180,0,0) centred y=300 |
+| Back | 3237 | Button(W/2-150, HEIGHT-100, 300, 60) GREEN_BTN |
+
+**Web status: NOT PORTED** (no exam states; card locked, M15-D1). Known gap.
+
+### UNKNOWN rows — resolution
+All twelve closed. Five were already correct (Victory gradient; question card
+800x200 white; combo glow at 650/450; Login error italic 22px (200,0,0) at y=750;
+`MathParticleSystem(35)` being Menu-only decoration). Seven were deviations and were
+restored in M19. No row remains UNKNOWN.
+
+### UNINSPECTED_STATES_REMAINING = 0
+Every state in scope has a source-backed specification. Three (TimeAttack,
+ExamTransition, ExamResult) are recorded as NOT PORTED with complete specs rather
+than left unknown.
   `ProfileState` (2130), `SkillMapState` (2191), `ShopState` (2273), `SkillTreeState` (2477),
   `BagState` (2670), `CardShopState` (2947), the exam states, and `IdleGifState`.
   Their **positions in the class list** are recorded in §A, but their draw internals are

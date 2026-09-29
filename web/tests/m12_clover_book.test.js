@@ -115,12 +115,20 @@ check('T04 Desktop clover caps 20/15/15 wired via cloverRain()', function () {
 
 // ---- T05: clover layer is painted as a background layer (Desktop z-order)
 check('T05 clover layer painted before state content', function () {
-  assert.strictEqual(count(STATES, 'drawClover(R, this.cloverEffect)'), 3, '3 draw sites');
+  // Was 3 when only Menu/Victory/Defeat drew it. M20 added RegisterState
+  // (Desktop main.py:368 FallingCloverEffect(25) + draw at main.py:398), so the
+  // count is 4. The meaningful assertions are the z-order ones below.
+  assert.strictEqual(count(STATES, 'drawClover(R, this.cloverEffect)'), 4, '4 draw sites (menu, victory, defeat, register)');
   assert.strictEqual(count(STATES, 'function drawClover(R, effect)'), 1, 'helper defined once');
   const menuBase = STATES.indexOf('class MenuState');
   const menu = STATES.indexOf('drawClover(R, this.cloverEffect)', menuBase);
   const menuTitle = STATES.indexOf("R.text('MATHDRILL'", menuBase);
   assert.ok(menu >= 0 && menuTitle > menu, 'Menu: clover before MATHDRILL title');
+  // M20: Desktop main.py:398 draws the clover before the character/fields.
+  const regBase = STATES.indexOf('class RegisterState');
+  const reg = STATES.indexOf('drawClover(R, this.cloverEffect)', regBase);
+  const regChar = STATES.indexOf("assets.get('main_character')", regBase);
+  assert.ok(reg >= 0 && regChar > reg, 'Register: clover before the character art');
   const vicBase = STATES.indexOf('class VictoryState');
   const vic = STATES.indexOf('drawClover(R, this.cloverEffect)', vicBase);
   const vicTitle = STATES.indexOf('🏆 HOÀN THÀNH BÀI HỌC', vicBase);

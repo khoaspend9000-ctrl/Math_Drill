@@ -91,6 +91,56 @@ theory improvements, all M15 guards. Desktop Python untouched.
   equivalent of Desktop's `self.timer`) rather than a per-frame delta; behaviour is
   equivalent but not frame-rate independent if `timer` is not incremented elsewhere.
 
+
+---
+
+# M20 ADDENDUM — final parity audit
+
+ORIGINAL_UI_RESTORATION_STATUS = PARTIAL_WITH_DOCUMENTED_GAPS
+UNINSPECTED_STATES_REMAINING = 0
+UNKNOWN_REMAINING = 0
+SCREENS_FULLY_AUDITED = 25 (all web-registered states)
+SCREENS_RESTORED = 9 (loading, menu, lesson, victory, defeat, register, shop,
+                   skill_tree, practice verified or corrected)
+PIXEL_VERIFIED = menu gradient, victory gradient, victory_text blit, defeat zoom,
+                lesson background_img, energy track/fill, question-card Y,
+                register background art, shop/skill_tree bg+title y, practice bg+card
+WEB_TESTS = 49 suites, 676 pass, 0 fail, 15 skip, 0 harness errors
+SERVER_TESTS = 11 suites, 0 failing
+BROWSER_TESTS = 29/29 real Chromium (0 console, 0 page, 0 request errors)
+PY_DIFF = 0 (36 files)
+KNOWN_AUTH_SESSION_ISSUE = backendMe() never called at boot; see source-of-truth
+
+## M20 source findings and corrections
+
+- RegisterState (main.py:397-398): background was a flat #1e2840; Desktop blits
+  background_img then draws FallingCloverEffect(25). Restored both.
+- ShopState (main.py:2465) and SkillTreeState (main.py:2552-2563): both titles
+  are centred at y=80; the web had y=60. Corrected both.
+
+## Verified already correct (no change)
+
+- PracticeState: light bg (245,245,250), title y=80, progress y=150, card 800x200
+  at y=220 r20 border (100,150,200) w3, 2x2 220x90 PURPLE_BTN grid — all match.
+- Shop/SkillTree backgrounds (165,214,167) — exact.
+- Register field/grade/button geometry and colours — match.
+
+## Deliberately NOT "fixed"
+
+- The "Chon lop:" label overlapping the password box and the large centred
+  character on Register exist in Desktop source (label y=390 vs box 350..400;
+  background art at full alpha). The web reproduces the original.
+- TimeAttack / ExamTransition / ExamResult are specified from source but not
+  ported. They were never in the web; the Menu cards are intentionally locked
+  (M15-D1). Adding them would be a new feature, not a parity fix.
+- Victory scale/alpha still driven by this.timer, per instruction 5.
+
+## Test harness note
+
+m12_clover_book T05 asserted exactly 3 clover draw sites. Adding RegisterState
+made it 4. The count was a snapshot of the M12 state, not the rule; the meaningful
+assertions are the z-order ones. Updated the count and ADDED a new z-order
+assertion for Register (clover before the character art).
 ## Git
 
 ```
