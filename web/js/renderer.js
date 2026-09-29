@@ -26,6 +26,36 @@
       ctx.restore();
     }
 
+    // M18 restoration: port of Desktop game_init.py:3528 draw_gradient(surface,
+    // color1, color2) - a full-height vertical lerp from color1 at the top row to
+    // color2 at the bottom row. Desktop draws one scanline per y; canvas does it with
+    // a single linear gradient, which is the same interpolation with less overdraw.
+    // Accepts [r,g,b] arrays (Desktop tuples) or css strings.
+    gradient(c1, c2) {
+      const ctx = this.ctx;
+      if (!ctx) return;
+      const toCss = function (c) {
+        if (typeof c === 'string') return c;
+        return 'rgb(' + c[0] + ',' + c[1] + ',' + c[2] + ')';
+      };
+      const h = this.height, w = this.width;
+      if (h <= 1) { this.clear(toCss(c1)); return; }
+      // Headless Node harnesses stub the 2D context without createLinearGradient.
+      // Degrade to the top colour instead of throwing, so a state draw can never
+      // hard-fail in a test or in a browser lacking the 2D gradient API.
+      if (typeof ctx.createLinearGradient !== 'function') {
+        this.clear(toCss(c1));
+        return;
+      }
+      const g = ctx.createLinearGradient(0, 0, 0, h);
+      g.addColorStop(0, toCss(c1));
+      g.addColorStop(1, toCss(c2));
+      ctx.save();
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, w, h);
+      ctx.restore();
+    }
+
     roundRectPath(x, y, w, h, r) {
       const ctx = this.ctx;
       const rr = Math.min(r, w / 2, h / 2);

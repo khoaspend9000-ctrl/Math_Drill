@@ -91,7 +91,11 @@ function makeRenderer() {
     clear: rec('clear'), fillRoundRect: rec('fillRoundRect'),
     text: rec('text'), drawRoundRect: rec('drawRoundRect'),
     fillRect: rec('fillRect'), drawRect: rec('drawRect'),
-    line: rec('line'), circle: rec('circle')
+    line: rec('line'), circle: rec('circle'),
+    // M18: states call Renderer.gradient() (the Desktop draw_gradient port). This
+    // suite does not currently draw the restored screens, but the mock must not
+    // be a trap for any test added later.
+    gradient: rec('gradient')
   };
   R._calls = calls;
   R.texts = function () { return calls.filter(c => c.m === 'text').map(c => String(c.args[0])); };

@@ -50,6 +50,10 @@ function lessonWithKeypad() {
   global.Game.states.current = st;
   st.opts = ['A', 'B', 'C', 'D'];
   st.buttons = st._buildOptionButtons();
+  // Mirror production order (states_real.js:1328-1332): the keypad is laid out
+  // from the real answer grid, not from the empty grid that existed when the
+  // LessonState was constructed.
+  st._initKeypad();
   st.feedback = null;
   return st;
 }

@@ -38,6 +38,9 @@ function makeRenderer() {
     clear: rec('clear'), fillRoundRect: rec('fillRoundRect'), text: rec('text'),
     drawRoundRect: rec('drawRoundRect'), fillRect: rec('fillRect'),
     drawRect: rec('drawRect'), line: rec('line'), circle: rec('circle'),
+    // M18: states now call Renderer.gradient() (the Desktop draw_gradient port),
+    // so mock renderers must expose it or a state draw throws.
+    gradient: rec('gradient'),
     image: rec('image')
   };
   R._calls = calls;

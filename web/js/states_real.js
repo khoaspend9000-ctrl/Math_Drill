@@ -41,11 +41,13 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
   // Màu theo main.py / game_init.py (BV «record» effective palette:
   // game_init.py:1985-1991 gán lại từ COLORS — primary(0,188,212) success(76,175,80)
   // danger(244,67,54) accent(255,215,0) secondary(138,43,176) warning(255,152,0) shadow(100,100,100))
-  // M16.1 identity fix: Desktop game_init.py:1986 binds BLUE_BTN=(70,130,180)
-  // (main.py imports this later binding, not the pastel set at line 309).
-  // The web had drifted to a bright cyan, which is why buttons looked like
-  // a modern web app rather than the original game.
-  const BLUE_BTN   = [70, 130, 180];
+  // M18 restoration: BLUE_BTN = COLORS['primary'] = (0, 188, 212) cyan.
+  // game_init.py:1986 assigns `BLUE_BTN = COLORS['primary']` and game_init.py:1973
+  // defines `COLORS['primary'] = (0, 188, 212)`. The inline comment on line 1986
+  // ("# (70, 130, 180)") is STALE. A binding takes the value, not the comment.
+  // M16.1 read that comment and moved the web to (70,130,180), which is wrong.
+  // main.py imports this later binding, not the pastel set at game_init.py:309.
+  const BLUE_BTN   = [0, 188, 212];
   const GREEN_BTN  = [76, 175, 80];
   const PURPLE_BTN = [138, 43, 176];
   const ORANGE_BTN = [255, 152, 0];
@@ -363,11 +365,15 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
 
     draw(ctx, W2, H2) {
       const R = global.Game.renderer;
-      R.clear('#141e37'); // main.py:162 s.fill((20,30,55)) + gradient (70,120,190)
+      // Desktop main.py:160-166 LoadingState.draw background stack:
+      //   s.fill((20,30,55)) -> draw_gradient((20,30,55)->(70,120,190))
+      //   -> background_img scaled 1300x800 at alpha 45.
+      R.clear('rgb(20,30,55)');
+      R.gradient([20, 30, 55], [70, 120, 190]);
       const bg = global.Game.assets && global.Game.assets.get('nen_game');
       if (bg && !bg.placeholder) {
         ctx.save();
-        ctx.globalAlpha = 0.35;
+        ctx.globalAlpha = 0.176;   // 45/255 to match Desktop's alpha=45
         R.image(bg, 0, 0, W2, H2);
         ctx.restore();
       }
@@ -895,8 +901,21 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
     draw(ctx, W2, H2) {
       const R = global.Game.renderer;
       const p = getPlayer();
-      R.clear('#192341');
-      R.fillRoundRect(0, 0, W2, H2, 0, 'rgba(25,35,65,1)', null, 0);
+      /* Desktop main.py:732-739 MenuState.draw background stack:
+           1. s.fill((25,35,65))
+           2. draw_gradient((25,35,65) -> (95,155,220))   game_init.py:3528
+           3. background_img scaled to (1300,800) at alpha 60
+         M18 restores the gradient and the background image at the source alpha. */
+      R.clear('rgb(25,35,65)');
+      R.gradient([25, 35, 65], [95, 155, 220]);
+      const _menuBg = global.Game.assets && global.Game.assets.get('nen_game');
+      if (_menuBg && !_menuBg.placeholder) {
+        ctx.save();
+        ctx.globalAlpha = 0.235;   // 60/255 to match Desktop's alpha=60
+        R.image(_menuBg, 0, 0, W2, H2);
+        ctx.restore();
+      }
+      R.fillRoundRect(0, 0, W2, H2, 0, 'rgba(25,35,65,0.18)', null, 0);
       /* Book chrome (Desktop main.py:745 RealisticBook(50,50,1200,700)) is painted
          by the REALISTICBOOK_P1 integration, which hooks Renderer.clear() and emits
          the chrome right after this clear. NOTE: the dashboard backdrop above is an
@@ -1307,6 +1326,10 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
       this.op = res.op || null;
       this.cardScale = 0;
       this.buttons = this._buildOptionButtons();
+      // M18: the keypad must be re-laid out whenever the answer grid changes,
+      // otherwise it is positioned from the previous (often empty) grid. This
+      // matters now that grades 1-2 use a taller 260x110 grid (main.py:1484-1488).
+      this._initKeypad();
     }
 
     // Grid 2x2 như Python main.py:1484-1488 (btn_w=220, gap 240/110)
@@ -1326,21 +1349,35 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
 
     _initKeypad() {
       if (!this._isTouchDevice()) { this.keypad = null; return; }
-      // Below the answer grid (startY 440, rows at 440 and 550, h 90),
-      // in the free band under the second row and clear of the back button.
+      // M18: derive the keypad Y from the ACTUAL answer grid instead of a hard-coded
+      // 660. Desktop main.py:1484-1488 makes grades 1-2 use taller buttons
+      // (260x110, gapY 130), so that grid ends at 440+130+110 = 680 — the old fixed
+      // 660 would have overlapped it. Clamp to stay clear of the back button
+      // (main.py:1440 back button is at x 20..220; the keypad is centred at x>=437).
       const kw = 96, kh = 60, gap = 14;
       const totalW = kw * 4 + gap * 3;
       const startX = W / 2 - totalW / 2;
-      const y = 660;
+      const btns = this._buildOptionButtons();
+      const answersBottom = btns.length
+        ? Math.max.apply(null, btns.map(function (b) { return b.y + b.h; }))
+        : 640;
+      const y = Math.max(660, answersBottom + 20);
       this.keypad = [1, 2, 3, 4].map((n, i) => ({
         digit: n, x: startX + i * (kw + gap), y: y, w: kw, h: kh
       }));
       this.keypadRect = { x: startX, y: y, w: totalW, h: kh };
     }
 
+    // Desktop main.py:1484-1488 sizes the 2x2 answer grid by grade:
+    //   is_young_learner(grade) -> btn 260x110, gap 280/130   (grades 1-2)
+    //   otherwise                -> btn 220x90,  gap 240/110   (grades 3-5)
+    // is_young_learner is game_init.py:145 - a cognitive-load accommodation for
+    // grades 1-2, not a styling choice, so it must be reproduced.
     _buildOptionButtons() {
-      const self = this;
-      const w = 220, h = 90, gapX = 240, gapY = 110;
+      const grade = (this.grade || 1);
+      const young = grade <= 2;
+      const w = young ? 260 : 220, h = young ? 110 : 90;
+      const gapX = young ? 280 : 240, gapY = young ? 130 : 110;
       const startX = W / 2 - gapX / 2 - w / 2;
       const startY = 440;
       return this.opts.map(function (o, i) {
@@ -1499,8 +1536,14 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
 
     draw(ctx, W2, H2) {
       const R = global.Game.renderer;
-      R.clear('#1e2840');
-      // Top bar (Python draw_top_bar + title)
+      // Desktop main.py:1634: `temp.blit(background_img,(0,0)) if background_img else
+      // temp.fill((30,40,60))` - the flat #1e2840 is only the NO-IMAGE fallback.
+      const _lessonBg = global.Game.assets && global.Game.assets.get('nen_game');
+      if (_lessonBg && !_lessonBg.placeholder) {
+        R.image(_lessonBg, 0, 0, W2, H2);
+      } else {
+        R.clear('#1e2840');   // Desktop fallback main.py:1634
+      }
       R.text('MathDrill 5.0', W2 / 2, 40, {
         font: 'bold 30px Quicksand, sans-serif', fill: '#dbe6ff', align: 'center', baseline: 'middle'
       });
@@ -1843,8 +1886,30 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
 
     draw(ctx, W2, H2) {
       const R = global.Game.renderer;
-      R.clear('#1e5030');
-      R.fillRoundRect(0, 0, W2, H2, 0, 'rgba(30,80,45,1)', null, 0);
+      // Desktop main.py:1173-1175 VictoryState.draw:
+      //   s.fill((30,80,40)) -> draw_gradient((30,80,40) -> (80,180,100))
+      R.clear('rgb(30,80,40)');
+      R.gradient([30, 80, 40], [80, 180, 100]);
+      /* M18: restore the original Victory artwork. Desktop main.py:1080-1084
+         + 1180-1184 loads victory_text.png, scales it x2.0 (shrinking to 1.0 at
+         4/s in update), fades alpha 0 -> 255 at 200/s, and blits it centred at
+         (WIDTH/2, HEIGHT/2-180) = (650, 220) - ABOVE the panel. */
+      const _vicArt = global.Game.assets && global.Game.assets.get('victory_text');
+      if (_vicArt && !_vicArt.placeholder) {
+        // Desktop update(): vic_scale 2.0 -> 1.0 at 4/s, vic_alpha 0 -> 255 at 200/s.
+        // `this.timer` is the same accumulator the Desktop `self.timer` is.
+        const t = this.timer || 0;
+        const vs = Math.max(1.0, 2.0 - 4 * t);
+        const va = Math.min(255, 200 * t) / 255;
+        const iw = _vicArt.naturalWidth || _vicArt.width || 0;
+        const ih = _vicArt.naturalHeight || _vicArt.height || 0;
+        const vw = iw ? Math.round(iw * vs) : Math.round(0.62 * W2 * vs);
+        const vh = ih ? Math.round(ih * vs) : Math.round(0.20 * H2 * vs);
+        ctx.save();
+        ctx.globalAlpha = va;
+        R.image(_vicArt, W2 / 2 - vw / 2, H2 / 2 - 180 - vh / 2, vw, vh);
+        ctx.restore();
+      }
       // Desktop main.py:1163 — clover layer is drawn before the victory UI.
       drawClover(R, this.cloverEffect);
       R.text('🏆 HOÀN THÀNH BÀI HỌC 🏆', W2 / 2, 140, {
@@ -1976,8 +2041,18 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
 
     draw(ctx, W2, H2) {
       const R = global.Game.renderer;
-      R.clear('#1e2337');
-      R.fillRoundRect(0, 0, W2, H2, 0, 'rgba(30,35,55,1)', null, 0);
+      // Desktop main.py:1046-1055 DefeatState.draw:
+      //   s.fill((30,35,55)) -> defeat.png smoothscaled by bg_scale (grows +0.05/s,
+      //   centred) -> light overlay (20,25,45,110) that does NOT black out the screen.
+      R.clear('rgb(30,35,55)');
+      const _defArt = global.Game.assets && global.Game.assets.get('defeat');
+      if (_defArt && !_defArt.placeholder) {
+        this.bgScale = (this.bgScale || 1.0) + 0.05 * 0.016;   // per-frame ~dt
+        const s = Math.min(1.6, this.bgScale);
+        const dw = Math.round(W2 * s), dh = Math.round(H2 * s);
+        R.image(_defArt, W2 / 2 - dw / 2, H2 / 2 - dh / 2, dw, dh);
+      }
+      R.fillRoundRect(0, 0, W2, H2, 0, 'rgba(20,25,45,0.431)', null, 0);  // 110/255
       // Desktop main.py:1051 — clover layer sits after the dark overlay and
       // before the panel/UI.
       drawClover(R, this.cloverEffect);

@@ -69,7 +69,8 @@ function makeRenderer() {
     clear: rec('clear'), fillRoundRect: rec('fillRoundRect'),
     text: rec('text'), drawRoundRect: rec('drawRoundRect'),
     fillRect: rec('fillRect'), drawRect: rec('drawRect'),
-    image: rec('image'), line: rec('line'), circle: rec('circle')
+    image: rec('image'), line: rec('line'), circle: rec('circle'),
+    gradient: rec('gradient')
   };
   R._calls = calls;
   R.texts = function () { return calls.filter(c => c.m === 'text').map(c => String(c.args[0])); };
@@ -293,7 +294,7 @@ function makeLoadingGame(st) {
   return s;
 }
 
-check('T10 LoadingState draws dark-navy clear + nen_game overlay at alpha 0.35', function () {
+check('T10 LoadingState draws Desktop base fill + gradient + nen_game overlay at alpha 45', function () {
   const st = freshStates();
   const s = makeLoadingGame(st);
   const ctx = { save: function () { ctx.saved = true; }, restore: function () { ctx.restored = true; }, globalAlpha: 1 };
@@ -301,12 +302,16 @@ check('T10 LoadingState draws dark-navy clear + nen_game overlay at alpha 0.35',
   const R = global.Game.renderer;
   const clear = R._calls.find(c => c.m === 'clear');
   assert.ok(clear, 'clear called');
-  assert.strictEqual(clear.args[0], '#141e37', 'Python s.fill((20,30,55)) parity');
+  assert.strictEqual(clear.args[0], 'rgb(20,30,55)', 'Desktop main.py:162 s.fill((20,30,55))');
+  const grad = R._calls.find(c => c.m === 'gradient');
+  assert.ok(grad, 'Desktop main.py:163 draw_gradient called');
   const img = R._calls.find(c => c.m === 'image');
   assert.ok(img, 'nen_game overlay drawn when the asset is available');
   assert.strictEqual(img.args[3], 1300, 'overlay covers full width');
   assert.strictEqual(img.args[4], 800, 'overlay covers full height');
-  assert.strictEqual(ctx.globalAlpha, 0.35, 'overlay alpha 0.35');
+  // Desktop main.py:165 blits background_img with alpha=45; the old web 0.35 was
+  // not the Desktop value. 45/255 = 0.176.
+  assert.strictEqual(ctx.globalAlpha, 0.176, 'overlay alpha 45 (Desktop main.py:165)');
   assert.ok(ctx.saved && ctx.restored, 'save/restore balanced around the overlay');
 });
 

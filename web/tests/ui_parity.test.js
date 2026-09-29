@@ -90,7 +90,10 @@ check('T07 Lesson state (question + options, no hard-coded stub)', function () {
 // ---- T08 Victory ----
 check('T08 Victory (dark-green + rank + XP + continue/review)', function () {
   has(STATES, "class VictoryState", 'VictoryState');
-  has(STATES, "R.clear('#1e5030')", 'victory background');
+  // Desktop main.py:1173 VictoryState.draw starts s.fill((30,80,40));
+  // the old web value #1e5030 = rgb(30,80,48) was not the Desktop value.
+  has(STATES, "R.clear('rgb(30,80,40)')", 'victory background (Desktop main.py:1173)');
+  has(STATES, "R.gradient([30, 80, 40], [80, 180, 100])", 'victory gradient (main.py:1175)');
   has(STATES, 'this.rank', 'rank letter');
   has(STATES, 'continueBtn', 'continue button');
   has(STATES, 'reviewBtn', 'review button');
@@ -131,11 +134,11 @@ check('T18 Font = original Quicksand + Segoe UI Emoji', function () {
 
 // ---- T19 Color/token contract (Python game_init.py:1985-1991) ----
 check('T19 Color tokens == Python effective palette', function () {
-  // Desktop game_init.py:1986 binds BLUE_BTN = COLORS['primary'] = (70, 130, 180).
-  // M16.1 corrected the web token from the old cyan (0,188,212) to this value, but
-  // this assertion was left behind and had been failing since. It now enforces the
-  // source of truth its own header cites.
-  has(STATES, 'const BLUE_BTN   = [70, 130, 180]', 'primary (Desktop dusty blue)');
+  // Desktop game_init.py:1986 binds BLUE_BTN = COLORS['primary'], and
+  // game_init.py:1973 defines COLORS['primary'] = (0, 188, 212) cyan. The inline
+  // comment on line 1986 ("# (70, 130, 180)") is STALE and was misread in M16.1;
+  // this assertion was correct originally and is restored to the source value.
+  has(STATES, 'const BLUE_BTN   = [0, 188, 212]', 'primary cyan (game_init.py:1973)');
   has(STATES, 'const GREEN_BTN  = [76, 175, 80]', 'success');
   has(STATES, 'const PURPLE_BTN = [138, 43, 176]', 'secondary');
   has(STATES, 'const ORANGE_BTN = [255, 152, 0]', 'warning');
