@@ -131,7 +131,11 @@ check('T18 Font = original Quicksand + Segoe UI Emoji', function () {
 
 // ---- T19 Color/token contract (Python game_init.py:1985-1991) ----
 check('T19 Color tokens == Python effective palette', function () {
-  has(STATES, 'const BLUE_BTN   = [0, 188, 212]', 'primary cyan');
+  // Desktop game_init.py:1986 binds BLUE_BTN = COLORS['primary'] = (70, 130, 180).
+  // M16.1 corrected the web token from the old cyan (0,188,212) to this value, but
+  // this assertion was left behind and had been failing since. It now enforces the
+  // source of truth its own header cites.
+  has(STATES, 'const BLUE_BTN   = [70, 130, 180]', 'primary (Desktop dusty blue)');
   has(STATES, 'const GREEN_BTN  = [76, 175, 80]', 'success');
   has(STATES, 'const PURPLE_BTN = [138, 43, 176]', 'secondary');
   has(STATES, 'const ORANGE_BTN = [255, 152, 0]', 'warning');

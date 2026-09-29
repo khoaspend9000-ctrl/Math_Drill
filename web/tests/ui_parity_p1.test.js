@@ -27,9 +27,24 @@ const INDEX = fs.readFileSync(path.join(ROOT, 'web', 'index.html'), 'utf8');
 
 let pass = 0, fail = 0;
 const failures = [];
+/* M17 harness fix: this check() counted async tests as PASS the instant fn() was
+   called, because a Promise rejection happens after the try/catch has already
+   returned. A genuinely broken async assertion therefore reported pass=N fail=0
+   while printing a stack trace to stderr - a silent false pass. Async results
+   are now tracked and flushed before the summary. */
+const pending = [];
 function check(name, fn) {
-  try { fn(); pass++; console.log('PASS ' + name); }
-  catch (e) { fail++; failures.push(name); console.log('FAIL ' + name + ' :: ' + (e && e.message)); }
+  let r;
+  try { r = fn(); }
+  catch (e) { fail++; failures.push(name); console.log('FAIL ' + name + ' :: ' + (e && e.message)); return; }
+  if (r && typeof r.then === 'function') {
+    pending.push(r.then(
+      function () { pass++; console.log('PASS ' + name); },
+      function (e) { fail++; failures.push(name); console.log('FAIL ' + name + ' :: ' + (e && e.message)); }
+    ));
+    return;
+  }
+  pass++; console.log('PASS ' + name);
 }
 
 /* ---------- harness: same module set main.js loads before states_real.js ---------- */
@@ -256,6 +271,14 @@ function makeLoadingGame(st) {
     assets: {
       get: function (n) { return n === 'nen_game' ? { placeholder: false } : null; },
       loadFonts: function () { fontCalls++; return Promise.resolve({}); },
+      // M17: LoadingState now loads assets individually (so it can gate Login on
+      // nen_game alone and defer the rest) and falls back to preload() only if
+      // loadImage is missing. The stub provides BOTH so the test observes the
+      // real per-asset path.
+      loadImage: function (name, url) {
+        preloadCalls.push([{ name: name, url: url }]);
+        return Promise.resolve({ placeholder: false });
+      },
       preload: function (list) {
         preloadCalls.push(list);
         return Promise.resolve({ total: list.length, loaded: list.length, failed: 0 });
@@ -287,36 +310,53 @@ check('T10 LoadingState draws dark-navy clear + nen_game overlay at alpha 0.35',
   assert.ok(ctx.saved && ctx.restored, 'save/restore balanced around the overlay');
 });
 
-check('T11 LoadingState renders title, percent text, progress bar and tip', function () {
+check('T11 LoadingState renders title, real progress text, progress bar and tip', function () {
   const st = freshStates();
   const s = makeLoadingGame(st);
-  s.elapsed = s.minTime; s.ready = true;
+  s.assetTotal = 6; s.assetDone = 2; s.elapsed = s.minTime; s.ready = false;
   s.draw({ save: function () {}, restore: function () {}, globalAlpha: 1 }, 1300, 800);
   const texts = global.Game.renderer.texts().join(' | ');
   assert.ok(texts.indexOf('MATHDRILL') >= 0, 'title drawn');
-  assert.ok(texts.indexOf('\u0110ang t\u1ea3i... 100%') >= 0, 'percent text is 100% when ready');
+  // M17: the old '...100%' was fabricated from elapsed/minTime and therefore sat
+  // at 100% while 1.7MB of art was still downloading. The bar now reports the real
+  // number of loaded assets, and the assertion actively forbids a fake percentage.
+  assert.ok(texts.indexOf('\u0110ang t\u1ea3i h\u00ecnh \u1ea3nh 2/6') >= 0, 'honest asset count while loading');
+  assert.ok(texts.indexOf('100%') < 0, 'no fabricated percentage');
   assert.ok(texts.indexOf('M\u1eb9o:') >= 0, 'tip line drawn');
   const bars = global.Game.renderer._calls.filter(c => c.m === 'fillRoundRect');
   assert.ok(bars.length >= 3, 'track + fill + outline drawn');
+  s.ready = true; s.assetDone = 6;
+  s.draw({ save: function () {}, restore: function () {}, globalAlpha: 1 }, 1300, 800);
+  const done = global.Game.renderer.texts().join(' | ');
+  assert.ok(done.indexOf('S\u1eb5n s\u00e0ng!') >= 0, 'ready state announced');
 });
 
-check('T12 LoadingState preloads 6 assets (incl. main_character) + fonts + sfx', function () {
+check('T12 LoadingState requests all 6 art assets, gating Login on nen_game only', async function () {
   const st = freshStates();
   const s = makeLoadingGame(st);
   s.enter();
-  assert.strictEqual(s._preloadCalls.length, 1, 'assets.preload called once');
-  const list = s._preloadCalls[0];
-  // M4: theory character + victory/defeat art added (Desktop parity game_init.py:292).
-  const REQUIRED = ['nen_game', 'pixel_clover', 'favicon', 'main_character', 'victory_text', 'defeat'];
-  const names = list.map(i => i.name);
-  REQUIRED.forEach(function (n) { assert.ok(names.includes(n), 'preload list must contain ' + n); });
-  assert.strictEqual(names.length, REQUIRED.length, 'no unexpected extra assets');
-  list.forEach(function (i) { assert.ok(/^assets\//.test(i.url), 'relative assets/ url for ' + i.name); });
+  // M17: startup requests ONLY the Login background first; the other five start
+  // after Login is usable. Desktop parity game_init.py:292 still loads all six.
+  assert.strictEqual(s._preloadCalls.length, 1, 'only nen_game requested during startup');
+  assert.strictEqual(s._preloadCalls[0][0].name, 'nen_game', 'critical image is nen_game');
+  assert.strictEqual(s.assetTotal, 6, 'all six tracked for the honest progress count');
+  await new Promise(r => setImmediate(r));
+  const names = s._preloadCalls.map(c => c[0].name);
+  const REQUIRED = ['pixel_clover', 'favicon', 'main_character', 'victory_text', 'defeat'];
+  REQUIRED.forEach(function (n) {
+    assert.ok(names.includes(n), 'deferred art must still be requested: ' + n);
+  });
+  assert.strictEqual(names.length, 6, 'exactly the six original assets, no extras');
+  s._preloadCalls.forEach(function (c) {
+    assert.ok(/^assets\//.test(c[0].url), 'relative assets/ url for ' + c[0].name);
+  });
   assert.strictEqual(s._fontCalls(), 1, 'assets.loadFonts called once');
   assert.deepStrictEqual(s._sfxCalls[0], ['correct', 'tra_loi_dung.ogg'], 'sfx preload parity');
-  assert.strictEqual(s.ready, false, 'not ready until preload resolves');
   assert.ok(s.tips.length >= 1 && typeof s.tip === 'string', 'tip pool + active tip');
 });
 
-console.log('UI_PARITY_P1: pass=' + pass + ' fail=' + fail);
-if (fail > 0) { console.log('FAILED: ' + failures.join(', ')); process.exit(1); }
+(async function () {
+  while (pending.length) { await pending.shift(); }
+  console.log('UI_PARITY_P1: pass=' + pass + ' fail=' + fail);
+  if (fail > 0) { console.log('FAILED: ' + failures.join(', ')); process.exit(1); }
+})();

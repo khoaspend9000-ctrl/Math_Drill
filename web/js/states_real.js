@@ -235,32 +235,99 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
 
     preloadAssets() {
       const G = global.Game;
-      const jobs = [];
-      if (G.assets && G.assets.loadFonts) jobs.push(G.assets.loadFonts());
-      else jobs.push(Promise.resolve({}));
-      if (G.assets && G.assets.preload) {
-        jobs.push(G.assets.preload([
-          { name: 'nen_game', url: 'assets/nen_game.png' },
-          { name: 'pixel_clover', url: 'assets/pixel_clover.png' },
-          { name: 'favicon', url: 'assets/favicon.png' },
-          // Desktop parity game_init.py:292 — DEFAULT_CHARACTER_IMG = main_character.png (600x600),
-          // dùng bởi TheoryState character panel (main.py:997-1004).
-          { name: 'main_character', url: 'assets/main_character.png' },
-          { name: 'victory_text', url: 'assets/victory_text.png' },
-          { name: 'defeat', url: 'assets/defeat.png' }
-        ]));
-      } else {
-        jobs.push(Promise.resolve({ total: 0, loaded: 0, failed: 0 }));
-      }
-      if (G.audio && G.audio.loadSfx) jobs.push(G.audio.loadSfx('correct', 'tra_loi_dung.ogg'));
-      else jobs.push(Promise.resolve(null));
       const self = this;
-      return Promise.all(jobs).then(function (results) {
-        self.report = results[1] || { total: 0, loaded: 0, failed: 0 };
+      /* M17 startup: the ONLY image LoginState draws is nen_game (states_real.js
+         LoginState.draw). The other five belong to screens the player only reaches
+         minutes later - main_character (Theory), victory_text (Victory), defeat
+         (Defeat), pixel_clover / favicon. Gating the Login transition on all six
+         made cold boot 42-55s on Render, because 1.7MB of Victory/Defeat art had to
+         finish streaming before anyone could type a username.
+         All six still start immediately and load in parallel; only the *gate*
+         changes. AssetManager.loadImage always resolves (a labelled placeholder on
+         error), and states re-read assets.get() every draw, so late art simply
+         appears on the next frame of the screen that needs it. */
+      const LIST = [
+        { name: 'nen_game', url: 'assets/nen_game.png' },
+        { name: 'pixel_clover', url: 'assets/pixel_clover.png' },
+        { name: 'favicon', url: 'assets/favicon.png' },
+        // Desktop parity game_init.py:292 — DEFAULT_CHARACTER_IMG = main_character.png (600x600),
+        // dùng bởi TheoryState character panel (main.py:997-1004).
+        { name: 'main_character', url: 'assets/main_character.png' },
+        { name: 'victory_text', url: 'assets/victory_text.png' },
+        { name: 'defeat', url: 'assets/defeat.png' }
+      ];
+      this.assetTotal = LIST.length;
+      this.assetDone = 0;
+      this.assetFailed = 0;
+      const bump = function (img) {
+        self.assetDone++;
+        if (img && img.placeholder) self.assetFailed++;
+        return img;
+      };
+      /* Only the Login background is on the critical path. The other five are
+         NOT requested during startup: on a constrained link the six parallel
+         downloads divide the same bandwidth, so even nen_game alone finished
+         23-44s into a 42-55s wait. Fetching it alone lets the one image the
+         player is actually looking at use the whole pipe. The remaining art
+         starts the moment Login is usable and is never awaited - by the time a
+         player can reach Theory/Victory/Defeat it has long since landed. */
+      const CRITICAL = 'nen_game';
+      const jobs = [];
+      /* Defensive: never let a missing AssetManager API hang the loading
+         screen. If loadImage is unavailable, fall back to preload(), and if
+         neither exists treat the item as instantly satisfied. */
+      const loadOne = function (item) {
+        try {
+          let j;
+          if (G.assets && typeof G.assets.loadImage === 'function') {
+            j = G.assets.loadImage(item.name, item.url);
+          } else if (G.assets && typeof G.assets.preload === 'function') {
+            j = G.assets.preload([item]);
+          } else {
+            j = Promise.resolve(null);
+          }
+          j = Promise.resolve(j).then(bump);
+          jobs.push(j);
+          return j;
+        } catch (err) {
+          L.error('[Loading] loadImage unavailable for', item.name, err);
+          return Promise.resolve(null);
+        }
+      };
+      let criticalItem = null;
+      for (let i = 0; i < LIST.length; i++) {
+        if (LIST[i].name === CRITICAL) { criticalItem = LIST[i]; break; }
+      }
+      const fonts = (G.assets && G.assets.loadFonts) ? G.assets.loadFonts() : Promise.resolve({});
+      // Audio must not gate Login either.
+      if (G.audio && G.audio.loadSfx) G.audio.loadSfx('correct', 'tra_loi_dung.ogg');
+      // Critical gate = fonts + the single image Login draws.
+      const critical = Promise.all([
+        fonts,
+        criticalItem ? loadOne(criticalItem) : Promise.resolve(null)
+      ]).then(function () {
         self.ready = true;
-        L.info('[Loading] Assets ready', self.report);
-      }).catch(function (err) {
-        L.error('[Loading] Preload failed', err);
+        L.info('[Loading] Login-critical ready at', Math.round(performance.now()));
+      });
+      // Deferred art: starts AFTER Login is usable, purely in the background.
+      const everything = critical.then(function () {
+        const rest = [];
+        for (let i = 0; i < LIST.length; i++) {
+          if (LIST[i].name !== CRITICAL) rest.push(loadOne(LIST[i]));
+        }
+        return Promise.all(rest);
+      }).then(function () {
+        self.report = {
+          total: self.assetTotal,
+          loaded: self.assetDone - self.assetFailed,
+          failed: self.assetFailed
+        };
+        L.info('[Loading] All art ready', self.report);
+        return self.report;
+      });
+      everything.catch(function (err) { L.error('[Loading] Preload failed', err); });
+      return critical.catch(function (err) {
+        L.error('[Loading] Critical preload failed', err);
         self.ready = true;
       });
     }
@@ -309,11 +376,18 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
         fill: '#e0ecff', align: 'center', baseline: 'middle'
       });
       const barW = 520, barH = 28, bx = (W2 - barW) / 2, by = H2 / 2 - 20;
-      const p = this.ready ? 1 : Math.min(1, this.elapsed / this.minTime);
+      /* M17: the old bar was fake — p = elapsed/minTime with minTime 1.2s, so it
+         sat at 100% while 1.7MB of art was still streaming and the player waited
+         40s+ staring at a "complete" bar. Now it tracks the real number of
+         downloaded assets and shows a plain count, not a fabricated percentage. */
+      const done = this.assetDone || 0;
+      const total = this.assetTotal || 1;
+      const p = this.ready ? 1 : Math.min(1, done / total);
       R.fillRoundRect(bx, by, barW, barH, 14, 'rgba(40,40,60,0.9)', null, 0);
       if (p > 0) R.fillRoundRect(bx, by, barW * p, barH, 14, 'rgb(100,200,255)', null, 0);
       R.fillRoundRect(bx, by, barW, barH, 14, 'rgba(0,0,0,0)', 'rgba(255,255,255,0.9)', 2);
-      R.text('Đang tải... ' + Math.round(p * 100) + '%', W2 / 2, by - 36, {
+      R.text(this.ready ? 'Sẵn sàng!' : 'Đang tải hình ảnh ' + done + '/' + total,
+        W2 / 2, by - 36, {
         font: '18px Quicksand, sans-serif', fill: '#e6e6f5', align: 'center', baseline: 'middle'
       });
       R.text(this.tip, W2 / 2, by + barH + 60, {
@@ -322,11 +396,14 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
       /* M16.1: kept from M16 - the only loading change judged to still fit the
          original game. Production cold boot measures 40-63s, and with no
          explanation a child reads the wait as a hang. Plain text on the
-         original background art; no plate, no gradient, no new elements. */
-      R.text(this.ready ? 'Sẵn sàng!' : 'Lần đầu tải có thể mất vài giây...',
-        W2 / 2, by + barH + 96, {
+         original background art; no plate, no gradient, no new elements.
+         M17: Login no longer waits for the remaining art, so this honest
+         first-load warning is only shown while the app is genuinely not ready. */
+      if (!this.ready) {
+        R.text('Lần đầu tải có thể mất vài giây...', W2 / 2, by + barH + 96, {
           font: '15px Quicksand, sans-serif', fill: '#9aa8c8', align: 'center', baseline: 'middle'
-      });
+        });
+      }
     }
   }
 

@@ -94,20 +94,30 @@
         }).catch(function (err) {
           L.warn('[Assets] Quicksand font load failed', err);
           self.fonts.quicksand = false;
-        }),
-        document.fonts.load('24px "Segoe UI Emoji"').then(function () {
-          self.fonts.emoji = true;
-        }).catch(function (err) {
-          L.warn('[Assets] Segoe UI Emoji font load failed', err);
-          self.fonts.emoji = false;
         })
       ];
-      return Promise.all(jobs).then(function () {
-        if (document.fonts.ready) {
-          return document.fonts.ready.then(function () { return self.fonts; });
-        }
-        return self.fonts;
+      /* M17: Segoe UI Emoji measured 2,024 KB and 15.8s of transfer - by far
+         the largest single startup resource - yet it is only used for
+         decorative emoji glyphs. Waiting for it blocked the Login screen for
+         longer than every image combined. It is a progressive enhancement:
+         CSS font matching re-resolves per frame, so glyphs simply switch to
+         the real face when it lands, and nothing depends on loadFonts()
+         resolving it. */
+      const emoji = document.fonts.load('24px "Segoe UI Emoji"').then(function () {
+        self.fonts.emoji = true;
+      }).catch(function (err) {
+        L.warn('[Assets] Segoe UI Emoji font load failed', err);
+        self.fonts.emoji = false;
       });
+      if (typeof Promise !== 'undefined' && Promise.prototype.then) {
+        try { emoji.catch(function () {}); } catch (e) { /* already handled */ }
+      }
+      /* NOTE: document.fonts.ready is deliberately NOT awaited here. It resolves
+         only once *every* pending font load settles, which would re-introduce the
+         2 MB emoji wait we just removed. document.fonts.load('24px "Quicksand"')
+         above already resolves when the one font Login actually renders in has
+         arrived, which is the signal startup needs. */
+      return Promise.all(jobs).then(function () { return self.fonts; });
     }
   }
 
