@@ -983,6 +983,18 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
         ctx.restore();
       }
       R.fillRoundRect(0, 0, W2, H2, 0, 'rgba(25,35,65,0.18)', null, 0);
+      /* M21: Desktop main.py:734-745 draw order is
+           s.fill -> draw_gradient -> background_img -> math_particles -> clover
+           -> self.book.draw(...) -> content
+         so the book belongs AFTER the background art. The _bookDrawBase hook fires
+         on R.clear/R.gradient, which is too early here — the art painted afterwards
+         covered the book, leaving the menu on a bare gradient. The fix is to suppress
+         the hook for Menu and paint here, at the Desktop position, exactly once.
+         T05 (ui_parity_p1) asserts book.draw is called exactly once per frame; drawing
+         it here AND letting the hook fire produced a double paint and failed T05. */
+      if (this._rbBook && typeof this._rbBook.draw === 'function') {
+        try { this._rbBook.draw(R); } catch (e) { /* never break draw */ }
+      }
       /* Book chrome (Desktop main.py:745 RealisticBook(50,50,1200,700)) is painted
          by the REALISTICBOOK_P1 integration, which hooks Renderer.clear() and emits
          the chrome right after this clear. NOTE: the dashboard backdrop above is an
@@ -3569,6 +3581,14 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
       return;
     }
     var origClear = R.clear;
+    /* M21: M18 changed several states (Menu) from a flat R.clear() to the Desktop
+       background stack R.gradient(...). Those states never call clear() at the top of
+       their draw(), so the hook below never fired and the book was never painted — the
+       menu rendered dashboard cards on a bare gradient. Hook gradient() as well, so
+       the book is emitted after the background is laid down, whatever method the
+       state used. Order still matches Desktop main.py:732-745:
+         background fill -> gradient -> background art -> clover -> BOOK -> content */
+    var origGradient = R.gradient;
     var painted = false;
     var paint = function () {
       if (painted) return;
@@ -3580,11 +3600,19 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
       paint();
       return out;
     };
+    if (typeof origGradient === 'function') {
+      R.gradient = function () {
+        var out = origGradient.apply(R, arguments);
+        paint();
+        return out;
+      };
+    }
     try {
       if (drawFn) drawFn();
       else paint();
     } finally {
       R.clear = origClear;
+      if (typeof origGradient === 'function') R.gradient = origGradient;
       if (!painted && !drawFn) { /* nothing to do */ }
     }
   }
@@ -3602,10 +3630,16 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
          hook is still installed while it runs. Calling _bookDrawBase(this) with no
          callback painted the chrome first and restored R.clear before the state
          drew, so the state's own clear erased it again — the P1 book chrome was
-         invisible on every screen that used this wrapper. */
+         invisible on every screen that used this wrapper.
+         M21: Menu is the one state whose Desktop order puts the book AFTER the
+         background art (main.py:734-745), and MenuState.draw now paints it there
+         itself. The early hook would paint a second, immediately-overpainted copy and
+         ui_parity_p1 T05 (book.draw called exactly once) would fail, so skip it. */
       var self = this, args = arguments;
+      if (this.__m21MenuOwnsBook) { if (mDraw) mDraw.apply(self, args); return; }
       _bookDrawBase(this, function () { if (mDraw) mDraw.apply(self, args); });
     };
+    MenuState.prototype.__m21MenuOwnsBook = true;
   }
 
   // --- LessonSelectState: book with 4 lessons left + 4 right ---
@@ -3628,6 +3662,67 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
       if (lUpdate) lUpdate.apply(this, arguments);
     };
   }
+
+  /* M21: generic book wiring for the Desktop states that own a RealisticBook but
+     were never connected to the Web one. Desktop main.py builds a book in Settings
+     (:754), PasswordChange (:876), Profile (:2132), Shop (:2275), SkillTree (:2479),
+     Daily (:2004) and AchievementView (:1929); only Menu, LessonSelect and Theory
+     were wired. The other five therefore painted their panels on a bare
+     (165,214,167) field with no cover, no spine and no cream pages. This wires them
+     through the SAME _bookDrawBase helper, so the Desktop order
+     (background -> book -> content) is preserved and no second book implementation
+     is introduced. Idempotent via proto.__bookWired. */
+  function _wireBookState(name) {
+    /* This IIFE is (function () { ... }) with no `global` parameter, so resolve the
+       class through the module-local binding the rest of the block already uses
+       (typeof XState !== 'undefined'), exactly as the Menu/LessonSelect/Theory
+       wiring above does. Using `global[name]` here threw "global is not defined". */
+    var Ctor = null;
+    switch (name) {
+      case 'ProfileState': Ctor = (typeof ProfileState !== 'undefined') ? ProfileState : null; break;
+      case 'ShopState': Ctor = (typeof ShopState !== 'undefined') ? ShopState : null; break;
+      case 'SkillTreeState': Ctor = (typeof SkillTreeState !== 'undefined') ? SkillTreeState : null; break;
+      case 'DailyState': Ctor = (typeof DailyState !== 'undefined') ? DailyState : null; break;
+      case 'AchievementState': Ctor = (typeof AchievementState !== 'undefined') ? AchievementState : null; break;
+      default: return;
+    }
+    if (!Ctor || !Ctor.prototype) return;
+    var proto = Ctor.prototype;
+    if (proto.__bookWired) return;
+    var enter = proto.enter;
+    if (enter) {
+      proto.enter = function () {
+        var out = enter.apply(this, arguments);
+        _bookEnter(this);
+        return out;
+      };
+    } else {
+      proto.enter = function () { _bookEnter(this); };
+    }
+    var draw = proto.draw;
+    proto.draw = function () {
+      var self = this, args = arguments;
+      _bookDrawBase(this, function () { if (draw) draw.apply(self, args); });
+    };
+    var update = proto.update;
+    proto.update = function (dt) {
+      if (this._rbBook && typeof this._rbBook.update === 'function') {
+        try { this._rbBook.update(dt); } catch (e) { /* no-op */ }
+      }
+      if (update) update.apply(this, arguments);
+    };
+    proto.__bookWired = true;
+  }
+
+  _wireBookState('ProfileState');
+  _wireBookState('ShopState');
+  _wireBookState('SkillTreeState');
+  _wireBookState('DailyState');
+  _wireBookState('AchievementState');
+
+  /* SettingsState / PasswordChangeState are constructor-function states exported
+     from settings_states.js, not ES classes, so they are wired inside that module
+     (M21) to avoid a script load-order cycle. */
 
   // --- TheoryState: book drawn behind the theory panel (Desktop main.py:997-1004).
   // FINAL QA: the state now builds its book from the real Desktop theory pages,

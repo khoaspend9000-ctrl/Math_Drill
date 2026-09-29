@@ -14,6 +14,24 @@
   function player() { var g = global.Game || {}; if (!g.player) g.player = { brightness: 1, volume: 1 }; return g.player; }
   function readSettings() { var S = global.Save; var d = S && S.load ? S.load(S.KEYS.SETTINGS, {}) : {}; return d && typeof d === 'object' ? d : {}; }
   function writeSettings(s) { var S = global.Save; return !!(S && S.save && S.save(S.KEYS.SETTINGS, { brightness: s.brightness, volume: s.volume, fullscreen: s.fullscreen, quality: s.quality })); }
+  /* M21: paint the Desktop RealisticBook surface for a state that does not go
+     through states_real.js's _bookDrawBase hook. Desktop main.py:754 (Settings) and
+     :876 (PasswordChange) each build `RealisticBook(50, 50, 1200, 700)` and call
+     `self.book.draw(s, ...)` right after the background fill. This reproduces just
+     that surface. It is deliberately local: no second book implementation, and it
+     never throws - a missing UI module leaves the state drawing exactly as before. */
+  var BOOK_RECT_M21 = { x: 50, y: 50, w: 1200, h: 700 };
+  function paintBookSurface(state, R) {
+    try {
+      if (!R || typeof R.fillRoundRect !== 'function') return;
+      var UI = global.UI;
+      var RB = UI && UI.RealisticBook;
+      if (typeof RB !== 'function') return;
+      if (!state.__m21Book) state.__m21Book = new RB([], BOOK_RECT_M21);
+      state.__m21Book.draw(R);
+    } catch (e) { /* never break a state draw */ }
+  }
+
   function SettingsState() { this.name = 'settings'; }
   SettingsState.prototype = Object.create(Base.prototype);
   SettingsState.prototype.constructor = SettingsState;
@@ -39,7 +57,15 @@
   };
   SettingsState.prototype.update = function (dt) { if (this.msgTimer > 0) this.msgTimer = Math.max(0, this.msgTimer - dt); };
   SettingsState.prototype.draw = function (ctx, W, H) {
-    var R = global.Game.renderer; R.clear('#a5d6a7');
+    var R = global.Game.renderer;
+    /* M21: Desktop main.py:754 gives SettingsState its own RealisticBook(50,50,1200,700)
+       and draws it right after the (165,214,167) background. Paint the book surface
+       immediately after the clear so the Desktop order
+       (background -> book -> content) is reproduced and the controls sit on the
+       cream pages, as in the original. Lazy-constructed so this module keeps working
+       even if UI.js has not loaded yet. */
+    R.clear('#a5d6a7');
+    paintBookSurface(this, R);
     R.text('CÀI ĐẶT', W / 2, 85, { font: 'bold 40px Quicksand, sans-serif', fill: '#20242e', align: 'center', baseline: 'middle' });
     R.text('HỆ THỐNG', 340, 190, { font: 'bold 30px Quicksand, sans-serif', fill: '#20242e', align: 'center', baseline: 'middle' });
     var b = this.buttons, rows = [['brightness', '☀️ Độ sáng: ' + Math.round(this.brightness * 100) + '%', BLUE], ['volume', '🔊 Âm lượng: ' + Math.round(this.volume * 100) + '%', GREEN], ['fullscreen', '📺 Toàn màn hình: ' + (this.fullscreen ? 'BẬT' : 'TẮT'), PURPLE], ['quality', '🖥️ Đồ họa: ' + ['Thấp', 'Vừa', 'Cao'][this.quality], TEAL], ['password', '🔑 Đổi mật khẩu', ORANGE], ['back', '⬅️ Quay lại menu', RED]];
@@ -69,7 +95,10 @@
   };
   PasswordChangeState.prototype.update = function (dt) { if (this.msgTimer > 0) this.msgTimer = Math.max(0, this.msgTimer - dt); };
   PasswordChangeState.prototype.draw = function (ctx, W, H) {
-    var R = global.Game.renderer; R.clear('#a5d6a7'); R.text('ĐỔI MẬT KHẨU', W / 2, 125, { font: 'bold 40px Quicksand, sans-serif', fill: '#20242e', align: 'center', baseline: 'middle' });
+    var R = global.Game.renderer; R.clear('#a5d6a7');
+    /* M21: Desktop main.py:876 — PasswordChangeState owns a RealisticBook too. */
+    paintBookSurface(this, R);
+    R.text('ĐỔI MẬT KHẨU', W / 2, 125, { font: 'bold 40px Quicksand, sans-serif', fill: '#20242e', align: 'center', baseline: 'middle' });
     var labels = ['Mật khẩu hiện tại', 'Mật khẩu mới', 'Xác nhận mật khẩu'];
     this.rects.forEach(function (r, i) { R.fillRoundRect(r.x, r.y, r.w, r.h, 10, 'rgb(220,220,220)', this.active === i ? 'rgb(80,120,220)' : '#fff', this.active === i ? 3 : 1); R.text(this.fields[i] ? new Array(this.fields[i].length + 1).join('*') : labels[i], r.x + 15, r.y + r.h / 2, { font: '20px Quicksand, sans-serif', fill: this.fields[i] ? '#303030' : '#999', baseline: 'middle' }); }, this);
     drawButton(R, this.changeBtn, '🔑 ĐỔI MẬT KHẨU', GREEN); drawButton(R, this.backBtn, '⬅️ QUAY LẠI', RED);
