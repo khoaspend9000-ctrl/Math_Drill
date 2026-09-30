@@ -948,7 +948,13 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
           return;
         }
         if (c.id === 'lesson') {
-          global.Game.states.change('lesson_select', { grade: getPlayer().grade }, 'fade');
+          /* M25.1: turn the book page instead of fading the whole viewport. The
+             destination is committed only when the curl finishes. */
+          var goLesson = function () {
+            global.Game.states.change('lesson_select', { grade: getPlayer().grade }, null);
+          };
+          if (this._rbNav && typeof this._rbNav.next === 'function') this._rbNav.next(goLesson);
+          else goLesson();
         } else if (c.id === 'daily') {
           global.Game.states.change('daily', null, 'fade');
         } else if (c.id === 'ach') {
@@ -1053,7 +1059,9 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
          T05 (ui_parity_p1) asserts book.draw is called exactly once per frame; drawing
          it here AND letting the hook fire produced a double paint and failed T05. */
       if (this._rbBook && typeof this._rbBook.draw === 'function') {
-        try { this._rbBook.draw(R); } catch (e) { /* never break draw */ }
+        /* M25.1: withTransition so the M22 curl actually renders on Menu. The
+           book is still painted exactly once per frame (ui_parity_p1 T05). */
+        try { this._rbBook.draw(R, null, null, !!this._rbBook.flipping); } catch (e) { /* never break draw */ }
       }
       /* Book chrome (Desktop main.py:745 RealisticBook(50,50,1200,700)) is painted
          by the REALISTICBOOK_P1 integration, which hooks Renderer.clear() and emits
@@ -1246,18 +1254,24 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
       if (this.dataMissing || this.loading) return;
       if (hit(click, this.nextBtn.x, this.nextBtn.y, this.nextBtn.w, this.nextBtn.h)
           && this.currentPage < this.totalPages - 1) {
-        this.currentPage += 1;
-        // M22: a page turn is the one place the Desktop book curls. "SAU" moves
-        // forward, so the left page contracts toward the spine -> slide_left.
-        if (this._rbBook) this._rbBook.startFlip('slide_left');
-        L.info('[LessonSelect] page', this.currentPage + 1, '/', this.totalPages);
+        /* M25.1: M22 advanced currentPage IMMEDIATELY, so the destination page was
+           already drawn on the page that was still turning. The index now changes
+           only once the curl has completed. "SAU" moves forward, so the left page
+           contracts toward the spine -> slide_left. */
+        var selfN = this;
+        var goN = function () { selfN.currentPage += 1;
+          L.info('[LessonSelect] page', selfN.currentPage + 1, '/', selfN.totalPages); };
+        if (this._rbNav && typeof this._rbNav.next === 'function') this._rbNav.next(goN);
+        else goN();
         return;
       }
       if (hit(click, this.prevBtn.x, this.prevBtn.y, this.prevBtn.w, this.prevBtn.h)
           && this.currentPage > 0) {
-        this.currentPage -= 1;
-        // "TRUOC" goes back: the right page contracts toward the spine.
-        if (this._rbBook) this._rbBook.startFlip('slide_right');
+        /* "TRUOC" goes back: the right page contracts toward the spine. */
+        var selfP = this;
+        var goP = function () { selfP.currentPage -= 1; };
+        if (this._rbNav && typeof this._rbNav.prev === 'function') this._rbNav.prev(goP);
+        else goP();
         return;
       }
       const startIdx = this.currentPage * this.itemsPerPage;
@@ -1930,7 +1944,7 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
     draw(ctx, W2, H2) {
       const R = global.Game.renderer;
       R.clear('#a5d6a7');
-      if (this._rbBook) this._rbBook.draw(R);
+      if (this._rbBook) this._rbBook.draw(R, null, null, !!this._rbBook.flipping);
       const font = '20px Quicksand, sans-serif';
       const lines = String(this.content || '').split('\n').flatMap(line => wrapText(R, line, 500, font));
       this.contentHeight = lines.length * 28;
@@ -3638,6 +3652,81 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
      state's own clear() erases the chrome again.
      Chrome is painted unconditionally (Desktop has no "has pages" condition): the
      `pages` array is only the legacy label list used when no page callbacks exist. */
+  /* ---- M25.1: book-only page-flip navigation -------------------------
+     GOAL: when a navigation button is pressed, ONLY the book's pages turn.
+     The viewport, background art and browser page must not fade/slide/scale.
+
+     REPRODUCED DEFECT (real Chromium, local server): clicking the Menu card
+     "HOC BAI" ran 36 full-screen transition frames and changed viewport pixels
+     outside the book on 34 of them. Root cause: the call passed 'fade' to
+     states.change(), and TransitionEffect.draw (effects2.js:81) fills the whole
+     canvas with rgba(11,16,32,a). The RealisticBook curl was never involved.
+
+     M25.1 replaces that with a three-phase state machine so the destination is
+     only committed once the page has physically turned:
+
+       IDLE     - the current state draws normally, book idle
+       FLIPPING - book curl runs; destination is recorded but NOT swapped in;
+                  the current state keeps drawing, so the old page is the one
+                  visible while it contracts. Navigation clicks are ignored.
+       COMPLETE - curl finished, destination committed, book idle again
+
+     The flip maths are unchanged from M22 (Desktop game_init.py:4376-4430):
+     progress 0->1 over 1/3 s, outgoing page 1.0->0.7, incoming 0.7->1.0,
+     shadow alpha 100->0, shadow width 8->12. This helper only decides WHEN a
+     navigation is committed; it does not re-implement the curl. */
+  function bookNav(states, book) {
+    var busy = false, pending = null;
+    function flip(direction, swap) {
+      if (!states || !book) { return swap ? swap() : undefined; }
+      /* Desktop-parity direction: slide_left turns the LEFT page, which is what
+         "next" does; slide_right turns the RIGHT page, what "prev" does. */
+      book.startFlip(direction);
+      busy = true;
+      pending = swap;
+      return undefined;
+    }
+    return {
+      /* FLIPPING: true while the page is turning. Callers use this to refuse
+         duplicate navigation clicks and to keep the old content on screen. */
+      get isFlipping() { return busy; },
+      /* true when a navigation is pending or running - used to suppress input
+         so a second click cannot queue a second swap. */
+      get isBusy() { return busy || !!pending; },
+      next: function (swap) { return flip('slide_left', swap); },
+      prev: function (swap) { return flip('slide_right', swap); },
+      /* Called once per frame. Returns true on the frame the flip completes, at
+         which point the destination state is committed. */
+      update: function (dt) {
+        if (!book) return false;
+        /* Always forward dt to the book: RealisticBook.update() is already a no-op
+           when no flip is active, and ui_parity_p1 T07 asserts the book is advanced
+           once per state update. Skipping the call while idle broke that contract
+           without changing behaviour, so the forwarding is unconditional. */
+        var done = false;
+        try { done = book.update(dt) === true; } catch (e) { done = true; }
+        if (!busy) return false;
+        if (!done) return false;
+        busy = false;
+        var swap = pending;
+        pending = null;
+        if (swap) swap();
+        return true;
+      },
+      reset: function () { busy = false; pending = null; }
+    };
+  }
+
+  /* M25.1: exported from THIS scope (the one bookNav is defined in) so the
+     focused test can drive the three-phase machine. NOTE: this IIFE has no
+     `global` binding - it resolves the global object through ROOT. */
+  if (ROOT) ROOT.bookNav = bookNav;
+  if (typeof module !== 'undefined' && module.exports) { try { module.exports.bookNav = bookNav; } catch (e) { /* ignore */ } }
+  function _states() {
+    var g = (typeof globalThis !== 'undefined' && globalThis) || ROOT;
+    return (g && g.Game) ? g.Game.states : null;
+  }
+  /* M25.1: MenuState owns a book too, so it needs the same helper. */
   function _bookDrawBase(state, drawFn) {
     var book = state._rbBook;
     var R = _renderer();
@@ -3658,7 +3747,12 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
     var paint = function () {
       if (painted) return;
       painted = true;
-      try { book.draw(R); } catch (e) { /* never break draw */ }
+      /* M25.1: pass withTransition so the M22 curl actually renders. Before
+         this the book was drawn as book.draw(R) -> withTransition undefined ->
+         animate = !!withTransition && this.flipping was ALWAYS false, so a page
+         turn was started but never drawn. Left/right page content stays
+         undefined exactly as before, so the screen content on top is untouched. */
+      try { book.draw(R, null, null, !!book.flipping); } catch (e) { /* never break draw */ }
     };
     R.clear = function () {
       var out = origClear.apply(R, arguments);
@@ -3691,6 +3785,7 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
     };
     var mDraw = MenuState.prototype.draw;
     MenuState.prototype.draw = function (ctx) {
+      if (!this._rbNav && this._rbBook) this._rbNav = bookNav(_states(), this._rbBook);
       /* The state's own draw must run INSIDE _bookDrawBase so the Renderer.clear
          hook is still installed while it runs. Calling _bookDrawBase(this) with no
          callback painted the chrome first and restored R.clear before the state
@@ -3705,6 +3800,22 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
       _bookDrawBase(this, function () { if (mDraw) mDraw.apply(self, args); });
     };
     MenuState.prototype.__m21MenuOwnsBook = true;
+    /* M25.1: advance the page turn every frame and commit the destination when it
+       completes. Without this the curl would never progress from Menu. */
+    var mUpdate = MenuState.prototype.update;
+    MenuState.prototype.update = function (dt) {
+      if (!this._rbNav && this._rbBook) this._rbNav = bookNav(_states(), this._rbBook);
+      if (this._rbNav) this._rbNav.update(dt);
+      if (mUpdate) mUpdate.apply(this, arguments);
+    };
+    /* M25.1: duplicate-click guard. While the page is turning the Menu must not
+       act on another navigation click, otherwise one press could commit two
+       destination swaps. */
+    var mInput = MenuState.prototype.handleInput;
+    MenuState.prototype.handleInput = function (input, dt) {
+      if (this._rbNav && this._rbNav.isBusy) return;
+      if (mInput) mInput.apply(this, arguments);
+    };
   }
 
   // --- LessonSelectState: book with 4 lessons left + 4 right ---
@@ -3719,9 +3830,20 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
       var self = this, args = arguments;
       _bookDrawBase(this, function () { if (lDraw) lDraw.apply(self, args); });
     };
+    /* M25.1: refuse further page-turn clicks while a turn is running. */
+    var lInput = LessonSelectState.prototype.handleInput;
+    LessonSelectState.prototype.handleInput = function (input, dt) {
+      if (this._rbNav && this._rbNav.isBusy) return;
+      if (lInput) lInput.apply(this, arguments);
+    };
     var lUpdate = LessonSelectState.prototype.update;
     LessonSelectState.prototype.update = function (dt) {
-      if (this._rbBook && typeof this._rbBook.update === 'function') {
+      /* M25.1: the page flip is driven through bookNav so the destination page is
+         committed only on the frame the curl completes. A raw book.update() here
+         would have completed the turn without ever committing the index. */
+      if (!this._rbNav && this._rbBook) this._rbNav = bookNav(_states(), this._rbBook);
+      if (this._rbNav) this._rbNav.update(dt);
+      else if (this._rbBook && typeof this._rbBook.update === 'function') {
         try { this._rbBook.update(dt); } catch (e) { /* no-op */ }
       }
       if (lUpdate) lUpdate.apply(this, arguments);

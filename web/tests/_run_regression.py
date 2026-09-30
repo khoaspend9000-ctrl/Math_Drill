@@ -23,6 +23,7 @@ test_suites = [
     'm15_python_guard.test.js',
     'm22_interaction.test.js',
     'm24_session_restore.test.js',
+    'm25_1_book_flip.test.js',
 ]
 
 def first(pattern, text, flags=0):

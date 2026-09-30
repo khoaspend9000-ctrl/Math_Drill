@@ -525,15 +525,31 @@
       R.fillRoundRect(co.x, co.y, co.w, co.h, 15, '#503214');
       R.fillRoundRect(ci.x, ci.y, ci.w, ci.h, 12, '#654321');
       R.fillRoundRect(sp.x, sp.y, sp.w, sp.h, 5, '#969696');
-      R.fillRoundRect(lr.x, lr.y, lr.w, lr.h, 10, '#fdf6e3');
-      R.fillRoundRect(rr.x, rr.y, rr.w, rr.h, 10, '#fdf6e3');
+      /* M25.1: at rest both pages are painted full size. While a page is turning we
+         must NOT paint the full-size surfaces as well - they would sit underneath
+         the curled ones and the sheet edge would never appear to move, leaving the
+         curl mathematically correct but visually dead. Cover, inner frame and spine
+         above are deliberately still painted unconditionally so the book itself
+         stays perfectly stable during the turn. */
       var out;
       if (!animate) {
+        R.fillRoundRect(lr.x, lr.y, lr.w, lr.h, 10, '#fdf6e3');
+        R.fillRoundRect(rr.x, rr.y, rr.w, rr.h, 10, '#fdf6e3');
         this._drawPage(R, lr, leftFunc, 0, false, false);
         out = this._drawPage(R, rr, rightFunc, 1, false, false);
         return out;
       }
       var leftOld = this.flipDir >= 0; // slide_left: left page is the outgoing one
+      /* M25.1: Desktop _draw_page_with_curl scales the PAGE SURFACE itself, not just
+         its content. Before this the cream surfaces were painted full-size above and
+         only _drawPage (which draws content) moved, so on a book with no page content
+         the curl was mathematically correct but visually invisible. Paint each page
+         surface at its curled rect first, then its content on top. Cover, inner
+         frame and spine are untouched and stay stable, as required. */
+      var ca = this._curlRect(lr, this.flipProgress, leftOld);
+      var cb = this._curlRect(rr, this.flipProgress, !leftOld);
+      R.fillRoundRect(ca.x, ca.y, ca.w, ca.h, 10, '#fdf6e3');
+      R.fillRoundRect(cb.x, cb.y, cb.w, cb.h, 10, '#fdf6e3');
       var a = this._drawPage(R, lr, leftFunc, this.flipProgress, leftOld, true);
       var b = this._drawPage(R, rr, rightFunc, this.flipProgress, !leftOld, true);
       if (typeof R.fillRect === 'function') {
