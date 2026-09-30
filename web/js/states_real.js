@@ -311,6 +311,13 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
         { name: 'main_character', url: 'assets/main_character.png' },
         { name: 'victory_text', url: 'assets/victory_text.png' },
         { name: 'defeat', url: 'assets/defeat.png' }
+        /* M29 parity: Desktop main.py:290 IdleGifState loads gt2.gif. It is
+           DELIBERATELY not in this boot LIST. Desktop only reaches IdleGifState
+           after 15s of login idle (main.py:230-232), so gt2.gif must not be on the
+           startup path - adding it here would pull 10.7MB during boot and undo the
+           M17 startup work (cold boot was cut 42-55s -> ~8.8s by gating on
+           nen_game only). IdleGifState.enter() loads it on demand, mirroring
+           Desktop's enter() -> load_gif(). */
       ];
       this.assetTotal = LIST.length;
       this.assetDone = 0;
@@ -535,6 +542,10 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
     }
     handleInput(input, dt) {
       const click = input.consumeClick ? input.consumeClick() : null;
+      /* M29 Desktop parity: main.py:227-232 only advances idle_timer while the
+         player does nothing, so any real input resets it. */
+      const idleKey = input.consumePressedKey ? input.consumePressedKey() : null;
+      if (click || idleKey) this.idleTimer = 0;
       if (click) {
         if (hit(click, this.userRect.x, this.userRect.y, this.userRect.w, this.userRect.h)) {
           this.activeField = 'user';
@@ -556,6 +567,7 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
         }
       }
       const key = input.consumePressedKey ? input.consumePressedKey() : null;
+      if (key) this.idleTimer = 0;
       if (key) {
         const k = key.key;
         if (k === 'Backspace') {
@@ -635,9 +647,95 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
   // LOGIN STATE below (main.py:183-251)
   // M4: chưa có AccountSystem (M5) — login tạo profile stub.
   // =========================================================
+  /* M29 Desktop parity: IdleGifState (main.py:252-365).
+     Desktop behaviour, ported 1:1:
+       - LoginState goes idle for 15.0s (main.py:230-232) and enters this state.
+       - gt2.gif is the ORIGINAL asset (main.py:290). Desktop decodes at most
+         MAX_GIF_FRAMES=45 frames at 30fps (frame_duration 0.033, main.py:259,264);
+         the browser animates a GIF natively, so Web keeps the same fullscreen
+         1300x800 presentation and the same visible cadence without decoding
+         frames into RAM.
+       - draw: blit the current frame at (0,0) fullscreen (main.py:358).
+       - while loading: fill (30,40,60) + centered "Dang tai GIF..." (main.py:360-363).
+       - ALWAYS: white centered hint at y = HEIGHT-100 (main.py:364-365).
+       - ANY mouse-down or key-down returns to LoginState (main.py:347-349). */
+  class IdleGifState extends BaseState {
+    constructor() {
+      super('idleGif');
+      this.loaded = false;
+      this.loading = false;
+    }
+
+    enter() {
+      if (this.loaded || this.loading) return;
+      this.loading = true;
+      const G = global.Game;
+      const A = G && G.assets;
+      // Desktop main.py:268-286 loads the GIF on enter (threaded on desktop,
+      // synchronously in the web build). Web loads it on demand for the same
+      // reason Desktop does not load it at boot.
+      try {
+        if (A && typeof A.get === 'function') {
+          const img = A.get('gt2');
+          if (img && !img.placeholder) { this.loaded = true; }
+        }
+      } catch (e) { /* fall through to the loading indicator */ }
+      if (A && typeof A.loadImage === 'function' && !this.loaded) {
+        try {
+          const self = this;
+          const r = A.loadImage('gt2', 'assets/gt2.gif');
+          if (r && typeof r.then === 'function') {
+            r.then(function (img) { if (img && !img.placeholder) self.loaded = true; self.loading = false; },
+                   function () { self.loading = false; });
+          } else if (r && !r.placeholder) { this.loaded = true; this.loading = false; }
+          else { this.loading = false; }
+        } catch (e) { this.loading = false; }
+      } else {
+        this.loading = false;
+      }
+    }
+
+    exit() {}
+
+    update() {}
+
+    handleInput(input) {
+      // main.py:347-349 - ANY click or key returns to the login screen.
+      const click = input && input.consumeClick ? input.consumeClick() : null;
+      const key = input && input.consumePressedKey ? input.consumePressedKey() : null;
+      if (click || key) {
+        global.Game.states.change('login', null, null);
+        return true;
+      }
+      return false;
+    }
+
+    draw(ctx, W2, H2) {
+      const R = global.Game.renderer;
+      const img = global.Game.assets && global.Game.assets.get('gt2');
+      const ready = this.loaded && img && !img.placeholder;
+      if (ready) {
+        // main.py:358 - s.blit(self.frames[self.current_frame], (0, 0))
+        R.image(img, 0, 0, W2, H2);
+      } else {
+        // main.py:360-363
+        R.clear('rgb(30,40,60)');
+        R.text('Đang tải GIF...', W2 / 2, H2 / 2,
+          { font: '24px Quicksand, sans-serif', fill: '#ffffff', align: 'center', baseline: 'middle' });
+      }
+      // main.py:364-365 - always drawn, WHITE, centred, y = HEIGHT-100
+      R.text('Click để quay lại đăng nhập', W2 / 2, H2 - 100,
+        { font: '24px Quicksand, sans-serif', fill: '#ffffff', align: 'center', baseline: 'middle' });
+    }
+  }
+
   class LoginState extends BaseState {
     constructor() {
       super('login');
+      /* M29 Desktop parity: main.py:227-232 accumulates idle_timer and enters
+         IdleGifState at >= 15.0s. Web had no idle tracking at all. */
+      this.IDLE_GIF_DELAY = 15.0;   // main.py:231
+      this.idleTimer = 0;
       this.userInput = '';
       this.passInput = '';
       this.activeField = 'user';
@@ -726,6 +824,11 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
 
     exit() {}
 
+    /* M29 Desktop parity: main.py:227-232
+         self.idle_timer += dt
+         if self.idle_timer >= 15.0: manager.change(IdleGifState())
+       Any real input resets the timer, exactly as Desktop's main loop only
+       advances idle_timer while the player does nothing. */
     _onLogin() {
       const username = this.userInput.trim();
       const password = this.passInput.trim();
@@ -784,6 +887,10 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
 
     handleInput(input, dt) {
       const click = input.consumeClick ? input.consumeClick() : null;
+      /* M29.1 Desktop main.py:227-232 - idle_timer only advances while the player
+         does nothing. Any interaction restarts the countdown, so a child typing a
+         username/password is NEVER yanked into the attract screen mid-entry. */
+      if (click) this.idleTimer = 0;
       if (click) {
         if (hit(click, this.userRect.x, this.userRect.y, this.userRect.w, this.userRect.h)) {
           this.activeField = 'user';
@@ -797,6 +904,9 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
         }
       }
       const key = input.consumePressedKey ? input.consumePressedKey() : null;
+      /* M29.1 Desktop main.py:227-232 - any key activity (typing, Backspace, Tab,
+         Enter) restarts the attract countdown, exactly like a click. */
+      if (key) this.idleTimer = 0;
       if (key) {
         const k = key.key;
         if (k === 'Backspace') {
@@ -816,9 +926,20 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
       }
     }
 
+    /* M29 Desktop parity main.py:227-232 - idle_timer accumulates only while
+       the player does nothing, then enters IdleGifState at >= 15.0s.
+       This MUST live in the single existing update(): an earlier duplicate was
+       shadowed by this one (last definition wins in a class body), so the attract
+       screen never fired. */
     update(dt) {
-      if (this.errorTimer > 0) this.errorTimer = Math.max(0, this.errorTimer - dt);
-      if (this.infoTimer > 0) this.infoTimer = Math.max(0, this.infoTimer - dt);
+      const d = dt || 0;
+      if (this.errorTimer > 0) this.errorTimer = Math.max(0, this.errorTimer - d);
+      if (this.infoTimer > 0) this.infoTimer = Math.max(0, this.infoTimer - d);
+      this.idleTimer += d;
+      if (this.idleTimer >= this.IDLE_GIF_DELAY) {
+        this.idleTimer = 0;
+        global.Game.states.change('idleGif', null, null);
+      }
     }
 
     _drawField(R, rect, value, fieldKey, placeholder, isPassword) {
@@ -3545,6 +3666,8 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
 
   // ---- Exports (global cho browser, module.exports cho Node test) ----
   global.LoadingState = LoadingState;
+  /* M29 parity export */
+  global.IdleGifState = IdleGifState;
   global.LoginState = LoginState;
   global.RegisterState = RegisterState;
   global.MenuState = MenuState;
@@ -3568,7 +3691,8 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
       LoadingState: LoadingState,
-      LoginState: LoginState,
+      IdleGifState: IdleGifState,
+    LoginState: LoginState,
       RegisterState: RegisterState,
       MenuState: MenuState,
       LessonSelectState: LessonSelectState,

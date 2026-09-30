@@ -61,6 +61,8 @@ const REGISTRY = {
   achievement: st.AchievementState, daily: st.DailyState, skill_tree: st.SkillTreeState,
   bag: st.BagState, profile: st.ProfileState, skill_map: st.SkillMapState,
   adminPanel: st.AdminPanelState, settings: st.SettingsState, passwordChange: st.PasswordChangeState,
+  /* M29 parity: IdleGifState (Desktop main.py:252) — adds T02 export, T03 BaseState contract, T04 change() checks. */
+  idleGif: st.IdleGifState,
   // M15-B1: review/practice are shipped states (main.js registers them)
   review: st.ReviewState, practice: st.PracticeState
 };
@@ -100,8 +102,10 @@ function freshData(over) {
 const click = (x, y) => ({ consumeClick: () => ({ x: x, y: y }), consumeWheel: () => null, consumePressedKey: () => null });
 
 /* T01 — registry completeness: main.js registers exactly the shipped states */
-check('FQA-T01 main.js registers all 24 shipped states', function () {
-  assert.strictEqual(REGISTERED.length, 24, 'registered=' + REGISTERED.length + ' (incl Register/Settings/Password/Review/Practice)');
+/* M29: 24 -> 25 after IdleGifState (Desktop main.py:252) was ported. The count
+   moves WITH the product; the per-state registry checks below are unchanged. */
+check('FQA-T01 main.js registers all 25 shipped states', function () {
+  assert.strictEqual(REGISTERED.length, 25, 'registered=' + REGISTERED.length + ' (incl Register/Settings/Password/Review/Practice/IdleGif)');
   for (const k of Object.keys(REGISTRY)) {
     assert.ok(REGISTERED.indexOf(k) >= 0, 'missing registration: ' + k);
   }

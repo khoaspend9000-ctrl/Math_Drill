@@ -135,6 +135,11 @@
 
       game.states.register('loading', new LoadingState());
       game.states.register('login', new LoginState());
+      /* M29 Desktop parity: IdleGifState (main.py:252), reached after 15s of
+         login-screen idle. Registered between login and register. */
+      if (typeof IdleGifState === 'function') {
+        game.states.register('idleGif', new IdleGifState());
+      }
       if (typeof RegisterState === 'function') {
         game.states.register('register', new RegisterState());
       }
