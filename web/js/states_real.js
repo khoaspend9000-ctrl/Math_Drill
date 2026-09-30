@@ -662,6 +662,66 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
       this.infoMsg = '';
       this.infoTimer = 0;
       L.info('[Login] enter (M4 stub — auth thật ở M5/M10)');
+      this._restoreSession();
+    }
+
+    /* M24-P1: session restore on reload.
+       REPRODUCED DEFECT (real Chromium, local server): with a VALID
+       `mathdrill_session` cookie the app still booted to the Login screen and
+       forced the player to retype their password after every refresh.
+       Root cause: AccountSystem.me() (auth.js:401, wrapping GET /api/auth/me)
+       existed but had NO CALLER anywhere in web/js, so boot never asked the
+       backend whether the session was still valid. Desktop does check:
+       game_init.py:5287 load_session_user().
+
+       Reuses ONLY already-written, already-shipped code: me() validates the
+       cookie, pullPlayerData() issues the SAME GET /api/player/data the
+       successful _onLogin path makes, and data()/createPlayer()/
+       accountToPlayerSave() are the byte-identical chain _onLogin uses.
+       No auth rule is weakened: an absent, invalid or expired cookie yields
+       null and the player simply stays on Login exactly as before. */
+    _restoreSession() {
+      const auth = global.Game && global.Game.auth;
+      if (!auth || typeof auth.me !== 'function') return;
+      /* Only probe when this browser has logged in before. A successful login
+         writes Save.KEYS.SESSION {last_user} (the same localStorage that sits
+         alongside the HttpOnly session cookie), so the hint and the cookie live
+         and die together. Without the hint we skip the request entirely, which
+         keeps a first-time visitor at zero extra HTTP calls: an unauthenticated
+         GET /api/auth/me answers 401 and Chrome logs every 4xx fetch to the
+         console, which would otherwise be permanent console noise on the Login
+         screen. With no hint we simply stay on Login, exactly as before. */
+      const S = global.Save;
+      const hint = (S && S.load) ? S.load(S.KEYS.SESSION, null) : null;
+      if (!hint || !hint.last_user) {
+        L.info('[Login] no prior session hint - skipping restore probe');
+        return;
+      }
+      Promise.resolve()
+        .then(function () { return auth.me(); })
+        .then(function (user) {
+          // backendMe() returns the user OBJECT; legacy local mode returns a bare
+          // username string. Only a real backend session auto-restores.
+          if (!user || typeof user !== 'object' || !user.username) return;
+          const username = String(user.username);
+          L.info('[Login] live session restored for', username);
+          const pull = (typeof auth.pullPlayerData === 'function')
+            ? auth.pullPlayerData() : Promise.resolve(null);
+          return Promise.resolve(pull).then(function () {
+            const d = auth.data();
+            const p = createPlayer(username, d.grade || 1);
+            p.loadSaveData(accountToPlayerSave(d)); // sync_player_stats
+            p.username = username;
+            global.Game.player = p;
+            const Save = global.Save;
+            if (Save && Save.save) Save.save(Save.KEYS.SESSION, { last_user: username });
+            global.Game.states.change('menu', null, 'fade');
+          });
+        })
+        .catch(function (e) {
+          // A failed restore must never block the login screen.
+          if (L) L.warn('[Login] session restore skipped:', e && e.message);
+        });
     }
 
     exit() {}
