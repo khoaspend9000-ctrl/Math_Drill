@@ -993,6 +993,345 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
   // theo milestone port (M7/M9/M10).
   // M5: dashboard đọc PlayerData thật (level/exp/expToNextLevel/gold).
   // =========================================================
+  /* ===================================================================
+     M29.2 — TimeAttackState
+     Faithful port of Desktop main.py:1745-1926 (class TimeAttackState).
+     Entry: main.py:674-676, Menu card index 1, NO lock/level gate.
+     Every numeric value carries its main.py line reference; the full
+     rule table is in M29_2_TIMEATTACK_PARITY.md.
+     =================================================================== */
+  class TimeAttackState extends BaseState {
+    constructor() {
+      super('time_attack');
+      const pl = getPlayer();
+      this.grade = pl.grade || 1;                       // main.py:1747
+      this.title = 'Time Attack';                       // main.py:1748
+      this.score = 0;                                   // main.py:1749
+      this.timeLeft = 60.0;                             // main.py:1750 TIME_LIMIT
+      this.totalCorrect = 0;                            // main.py:1751
+      this.totalAnswered = 0;                           // main.py:1752
+      this.gameOver = false;                            // main.py:1753
+      this.feedback = null;                             // main.py:1754
+      this.pendingAdvance = false;                      // main.py:1755
+      this.cardScale = 0.0;                             // main.py:1756
+      // main.py:1757 FallingCloverEffect(15)
+      this.cloverEffect = global.FallingClover ? new global.FallingClover(15) : null;
+      // main.py:1758 adaptive_ai.reset()
+      if (global.adaptiveAI && typeof global.adaptiveAI.reset === 'function') {
+        global.adaptiveAI.reset();
+      }
+      // main.py:1759 update_combo(False) — reset the global combo streak
+      pl.resetCombo();
+      this.missing = false;
+      this.buttons = [];
+      this.nextQ();                                     // main.py:1761
+      // main.py:1762 Button(20, HEIGHT-75, 200, 60, "THOÁT", RED_BTN)
+      // NOTE: Desktop uses HEIGHT, not WIDTH. Using W put the button at y=1225,
+      // off the bottom of the 800-tall logical canvas.
+      this.backBtn = { x: 20, y: H - 75, w: 200, h: 60 };
+    }
+
+    // item_fx may not be instantiated in the Web build yet; use a neutral
+    // null-object so Desktop's guards still run instead of throwing.
+    _fx() {
+      const fx = global.Game && global.Game.itemFx;
+      if (fx && typeof fx.getTimeBonus === 'function') return fx;
+      return {
+        getScoreMultiplier: function () { return 1; },
+        getTimeBonus: function () { return 0; },
+        consumeQuestionCount: function () {},
+        hasFreezeTimer: function () { return false; },
+        tickTimers: function () {}
+      };
+    }
+
+    /* Desktop constructs a NEW TimeAttackState on every entry
+       (main.py:676 `trigger_transition(TimeAttackState())`), so every __init__
+       value at main.py:1746-1762 is re-applied each time. The Web StateManager
+       keeps ONE instance and calls enter(), so without this the second run would
+       inherit the first run's timer, score and counters. */
+    enter() {
+      const pl = getPlayer();
+      this.grade = pl.grade || 1;                       // main.py:1747
+      this.score = 0;                                   // main.py:1749
+      this.timeLeft = 60.0;                             // main.py:1750
+      this.totalCorrect = 0;                            // main.py:1751
+      this.totalAnswered = 0;                           // main.py:1752
+      this.gameOver = false;                            // main.py:1753
+      this.feedback = null;                             // main.py:1754
+      this.pendingAdvance = false;                      // main.py:1755
+      this.cardScale = 0.0;                             // main.py:1756
+      // main.py:1757 a fresh effect per entry
+      this.cloverEffect = global.FallingClover ? new global.FallingClover(15) : null;
+      // main.py:1758 adaptive_ai.reset()
+      if (global.adaptiveAI && typeof global.adaptiveAI.reset === 'function') {
+        global.adaptiveAI.reset();
+      }
+      // main.py:1759 update_combo(False)
+      pl.resetCombo();
+      this.missing = false;
+      this.buttons = [];
+      this.nextQ();                                     // main.py:1761
+    }
+
+    // main.py:1763-1791 next_q()
+    nextQ() {
+      // main.py:1765 rid = randint(1,40) if grade == 1 else randint(1,60)
+      const maxRid = this.grade === 1 ? 40 : 60;
+      const rid = 1 + Math.floor(Math.random() * maxRid);
+      const pl = getPlayer();
+      // main.py:1766-1768 safe_generate_question(grade, rid, difficulty, user_id)
+      const diff = (global.adaptiveAI && global.adaptiveAI.getCurrentDifficulty) ?
+        global.adaptiveAI.getCurrentDifficulty() : 3;
+      let res = null;
+      try {
+        res = global.Game.questionGen.generate(this.grade, rid, diff, pl.username);
+      } catch (err) { L.error('[TimeAttack] generate error', err); }
+      if (!res || !res.question) {
+        L.warn('[TimeAttack] không nhận được câu hỏi — dừng vòng chơi');
+        this.missing = true;
+        return;
+      }
+      this.missing = false;
+      this.q = String(res.question);
+      this.ans = String(res.answer);
+      this.opts = (res.options || []).map(String);
+      this.op = res.op || null;
+      // main.py:1770 btn_col = (220,150,50) if combo_multiplier > 1.5 else PURPLE_BTN
+      const btnCol = pl.comboMultiplier > 1.5 ? [220, 150, 50] : PURPLE_BTN;
+      // main.py:1772-1779 dynamic width: btn_w = max(240, max_tw + 80)
+      let maxTw = 0;
+      for (let i = 0; i < this.opts.length; i++) {
+        maxTw = Math.max(maxTw, this.opts[i].length * 16);
+      }
+      const btnW = Math.max(240, maxTw + 80);
+      const spacingX = 40, spacingY = 110;              // main.py:1780-1781
+      // main.py:1782 start_x = WIDTH//2 - (btn_w*2 + spacing_x)//2
+      const startX = W / 2 - Math.floor((btnW * 2 + spacingX) / 2);
+      // main.py:1784-1788 two-column grid, y = 420 + (i//2)*110, h = 90
+      this.buttons = this.opts.map(function (o, i) {
+        return {
+          x: startX + (i % 2) * (btnW + spacingX),
+          y: 420 + Math.floor(i / 2) * spacingY,
+          w: btnW, h: 90, value: o, index: i
+        };
+      });
+      this.cardScale = 0.0;                             // main.py:1790
+      // main.py:1791 adaptive_ai.start_question()
+      if (global.adaptiveAI && typeof global.adaptiveAI.startQuestion === 'function') {
+        global.adaptiveAI.startQuestion();
+      }
+      L.info('[TimeAttack] next question', rid, 'diff', diff);
+    }
+
+    // main.py:1792-1842 handle_event(e)
+    handleInput(input, dt) {
+      const click = input.consumeClick ? input.consumeClick() : null;
+      const key = input.consumePressedKey ? input.consumePressedKey() : null;
+      // main.py:1793-1795 after the result screen is entered, input is ignored.
+      if (this.gameOver) return;
+      // main.py:1796-1801 while feedback is up the ONLY accepted input is
+      // MOUSEDOWN or SPACE, which dismisses and pulls the next question.
+      // Everything else is swallowed, so a second answer can never be scored
+      // for the same question (no duplicate scoring).
+      if (this.feedback && this.feedback.active) {
+        const isSpace = key && (key.key === ' ' || key.key === 'Space' ||
+          key.key === 'Spacebar');
+        if (click || isSpace) {
+          this.feedback.active = false;                // main.py:1798
+          this.pendingAdvance = false;                 // main.py:1799
+          this.nextQ();                                // main.py:1800
+        }
+        return;
+      }
+      if (this.missing) return;
+      if (click) {
+        // main.py:1835-1842 back button restores menu music then MenuState()
+        if (hit(click, this.backBtn.x, this.backBtn.y, this.backBtn.w, this.backBtn.h)) {
+          this._backToMenu();
+          return;
+        }
+        // main.py:1803-1834 option click (first match wins -> main.py:1834 break)
+        for (let i = 0; i < this.buttons.length; i++) {
+          const b = this.buttons[i];
+          if (!hit(click, b.x, b.y, b.w, b.h)) continue;
+          this._answer(b.value);
+          break;
+        }
+        return;
+      }
+      // M15-D2 parity convenience: Desktop is mouse-only, so the digit row is a
+      // Web-only affordance resolving to the SAME option the mouse path clicks.
+      // It never bypasses the feedback lock above.
+      if (key && key.key && key.key.indexOf('Digit') === 0) {
+        const n = parseInt(key.key.slice(5), 10);
+        if (n >= 1 && n <= this.buttons.length) this._answer(this.buttons[n - 1].value);
+      }
+    }
+
+    // main.py:1804-1834 — the scoring body of one answer click
+    _answer(value) {
+      const isCorrect = String(value) === String(this.ans);
+      const pl = getPlayer();
+      const fx = this._fx();
+      this.totalAnswered += 1;                          // main.py:1806
+      if (isCorrect) {
+        this.totalCorrect += 1;                         // main.py:1808
+        // main.py:1809 points = int(20 * combo_multiplier)
+        let points = Math.trunc(20 * pl.comboMultiplier);
+        // main.py:1811 points = int(points * item_fx.get_score_multiplier())
+        points = Math.trunc(points * fx.getScoreMultiplier());
+        // main.py:1812 consume_question_count("score_x3_10q")
+        fx.consumeQuestionCount('score_x3_10q');
+        this.score += points;                           // main.py:1813
+        // main.py:1815-1816 time_add = 1.0 + time_bonus; time_left = min(60, +)
+        const timeAdd = 1.0 + fx.getTimeBonus();
+        this.timeLeft = Math.min(60, this.timeLeft + timeAdd);
+        pl.updateCombo(true);
+      } else {
+        // main.py:1807-1816 the wrong branch scores nothing and grants no time
+        pl.updateCombo(false);
+      }
+      // main.py:1821-1823 adaptive_ai.record_answer(is_correct, topic_id, type)
+      if (global.adaptiveAI && typeof global.adaptiveAI.recordAnswer === 'function') {
+        global.adaptiveAI.recordAnswer(isCorrect, this.grade + '_' + this.title, 'lesson');
+      }
+      // main.py:1832 FeedbackOverlay(..., is_ta=True)
+      this.feedback = { active: true, correct: isCorrect };
+      this.pendingAdvance = true;                       // main.py:1833
+      L.info('[TimeAttack] answer', String(value), 'correct=' + isCorrect, 'score=' + this.score);
+    }
+
+    // main.py:1835-1842 back button
+    _backToMenu() {
+      // main.py:1837-1841 resume menu music (silent no-op if unavailable)
+      try {
+        const A = global.Game && global.Game.audio;
+        if (A && typeof A.setBgm === 'function') A.setBgm('menu');
+      } catch (e) { /* audio optional */ }
+      global.Game.states.change('menu', null, null);
+    }
+
+    // main.py:1843-1864 update(dt)
+    update(dt) {
+      if (this.cloverEffect && typeof this.cloverEffect.update === 'function') {
+        this.cloverEffect.update(dt);                   // main.py:1844
+      }
+      const fx = this._fx();
+      fx.tickTimers(dt);                                // main.py:1845
+      // main.py:1846-1859 the timer runs only when not game over AND no
+      // feedback is showing, so reading the question never costs time.
+      if (!this.gameOver && !(this.feedback && this.feedback.active)) {
+        if (!fx.hasFreezeTimer()) {                    // main.py:1848
+          this.timeLeft -= dt;                         // main.py:1849
+        }
+        // main.py:1850-1859 timeout. gameOver is set BEFORE the transition so
+        // a later frame cannot transition a second time (no double result).
+        if (this.timeLeft <= 0) {
+          this.timeLeft = 0;                           // main.py:1851
+          this.gameOver = true;                        // main.py:1852
+          const stats = {                             // main.py:1853-1858
+            correct: this.totalCorrect,
+            total: this.totalAnswered,
+            accuracy: (this.totalCorrect / Math.max(1, this.totalAnswered)) * 100,
+            avgTime: (global.adaptiveAI && global.adaptiveAI.getAvgTime) ?
+              global.adaptiveAI.getAvgTime() : 0
+          };
+          // main.py:1859 VictoryState("HẾT GIỜ!", score, "Time Attack", stats)
+          global.Game.states.change('victory', {
+            title: 'HẾT GIỜ!', score: this.score,
+            lessonTitle: 'Time Attack', stats: stats
+          }, null);
+          return;   // nothing else this frame once the state has changed
+        }
+      }
+      // main.py:1860-1861 card_scale = min(1.0, card_scale + dt*6)
+      if (this.cardScale < 1.0) this.cardScale = Math.min(1.0, this.cardScale + dt * 6);
+    }
+
+    // main.py:1865-1923 draw(s)
+    draw(ctx, W2, H2) {
+      const R = global.Game.renderer;
+      // main.py:1866 clover layer is drawn BEFORE the temp surface. Seed the pool
+      // through the same helper Menu/Victory/Defeat use so the 15 particles
+      // actually spawn (Desktop main.py:1757 creates the effect; draw seeds it).
+      cloverRain(this.cloverEffect, 15);
+      drawClover(R, this.cloverEffect);
+      // main.py:1869 background_img else fill (30,40,60)
+      const bg = global.Game.assets && global.Game.assets.get('nen_game');
+      if (bg && !bg.placeholder) R.image(bg, 0, 0, W2, H2);
+      else R.clear('rgb(30,40,60)');
+      // main.py:1870 draw_top_bar(temp)
+      drawTopBar(R, ctx, W2, getPlayer().comboStreak);
+
+      // main.py:1872-1874 timer: (200,80,80) under 10s else WHITE, centred y=80
+      const timerCol = this.timeLeft < 10 ? 'rgb(200,80,80)' : '#ffffff';
+      R.text('⏱ ' + Math.trunc(this.timeLeft) + 's', W2 / 2, 80, {
+        font: 'bold 40px Quicksand, Segoe UI Emoji, sans-serif',
+        fill: timerCol, align: 'center', baseline: 'middle'
+      });
+
+      // main.py:1876-1884 question card 800x200, scale-animated
+      if (!this.missing) {
+        const cardW = 800, cardH = 200;                // main.py:1876
+        const sc = this.cardScale;
+        const dw = Math.trunc(cardW * sc), dh = Math.trunc(cardH * sc);
+        const qx = W2 / 2 - Math.floor(dw / 2);
+        const qy = 220 + Math.floor((cardH - dh) / 2); // main.py:1879
+        // main.py:1881 shadow (0,0,0,60) at (+5,+8) radius 30
+        R.fillRoundRect(qx + 5, qy + 8, dw, dh, 30, 'rgba(0,0,0,0.235)', null, 0);
+        // main.py:1883 white body radius 30
+        R.fillRoundRect(qx, qy, dw, dh, 30, '#ffffff', null, 0);
+        // main.py:1884 border (255,150,50) width 5 radius 30
+        R.fillRoundRect(qx, qy, dw, dh, 30, null, 'rgb(255,150,50)', 5);
+        // main.py:1885-1910 the question text only once sc > 0.5
+        if (sc > 0.5) {
+          R.text(this.q, qx + dw / 2, qy + dh / 2, {
+            font: 'bold 32px Quicksand, sans-serif', fill: 'rgb(40,40,40)',
+            align: 'center', baseline: 'middle', maxWidth: cardW - 60
+          });
+        }
+      }
+
+      // main.py:1912-1913 current score, (255,225,100), centred y=390
+      R.text('ĐIỂM HIỆN TẠI: ' + this.score, W2 / 2, 390, {
+        font: 'bold 28px Quicksand, sans-serif', fill: 'rgb(255,225,100)',
+        align: 'center', baseline: 'middle'
+      });
+
+      // main.py:1914-1917 buttons + back button (main.py:1762)
+      const pl = getPlayer();
+      const btnCol = pl.comboMultiplier > 1.5 ? [220, 150, 50] : PURPLE_BTN;
+      for (let i = 0; i < this.buttons.length; i++) {
+        const b = this.buttons[i];
+        drawBtn(R, b.x, b.y, b.w, b.h, b.value, btnCol, { fontSize: 24 });
+        R.text(String(i + 1), b.x + 22, b.y + b.h / 2, {
+          font: 'bold 22px Quicksand, sans-serif', fill: 'rgba(255,255,255,0.85)',
+          align: 'center', baseline: 'middle'
+        });
+      }
+      drawBtn(R, this.backBtn.x, this.backBtn.y, this.backBtn.w, this.backBtn.h,
+        '🚪 THOÁT', RED_BTN, { fontSize: 16 });
+
+      // main.py:1919 confetti / :1921-1922 feedback overlay
+      if (this.feedback && this.feedback.active) {
+        const fcol = this.feedback.correct ? '#16a34a' : '#dc2626';
+        R.fillRoundRect(W2 / 2 - 300, 300, 600, 120, 18, 'rgba(10,14,28,0.92)', fcol, 3);
+        R.text(this.feedback.correct ? '✔ Đúng rồi! (bấm để tiếp tục)'
+          : '✘ Sai rồi — bấm để tiếp tục', W2 / 2, 340, {
+          font: 'bold 24px Quicksand, sans-serif', fill: '#ffffff',
+          align: 'center', baseline: 'middle'
+        });
+        if (!this.feedback.correct) {
+          R.text('Đáp án Đúng: ' + this.ans, W2 / 2, 388, {
+            font: '18px Quicksand, sans-serif', fill: '#ffe9a8',
+            align: 'center', baseline: 'middle'
+          });
+        }
+      }
+    }
+  }
+
   class MenuState extends BaseState {
     constructor() {
       super('menu');
@@ -1010,7 +1349,7 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
       const row4_x = x - 50;
       this.cards = [
         { id: 'lesson', x: x, y: card_y1, w: card_w, h: card_h, icon: '🎓', label: 'Bài Học', sub: 'Luyện tập theo chương', bg: BLUE_BTN },
-        { id: 'time', x: x + card_w + gap, y: card_y1, w: card_w, h: card_h, icon: '⏱️', label: 'Time Attack', sub: 'Chơi nhanh ghi điểm', bg: ORANGE_BTN, locked: 'M7' },
+        { id: 'time', x: x + card_w + gap, y: card_y1, w: card_w, h: card_h, icon: '⏱️', label: 'Time Attack', sub: 'Chơi nhanh ghi điểm', bg: ORANGE_BTN },
         { id: 'daily', x: x, y: card_y2, w: card_w, h: card_h, icon: '🔥', label: 'Thử Thách', sub: 'Bài tập hằng ngày', bg: YELLOW_BTN },
         { id: 'exam', x: x + card_w + gap, y: card_y2, w: card_w, h: card_h, icon: '📝', label: 'Thi Chuyển Lớp', sub: 'Kiểm tra tổng hợp', bg: [180, 130, 200], locked: 'M10' },
         { id: 'ach', x: x, y: card_y3, w: 140, h: 65, icon: '🏆', label: 'Thành Tích', bg: GREEN_BTN },
@@ -1076,6 +1415,16 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
           };
           if (this._rbNav && typeof this._rbNav.next === 'function') this._rbNav.next(goLesson);
           else goLesson();
+        } else if (c.id === 'time') {
+          /* M29.2 Desktop parity: main.py:674-676 opens TimeAttackState directly,
+             with the same PAGE (book-flip) transition main.py:668-670 gives card 0.
+             Desktop has no lock/level gate on this card, so the invented M7 lock
+             is removed here. */
+          var goTimeAttack = function () {
+            global.Game.states.change('time_attack', null, null);
+          };
+          if (this._rbNav && typeof this._rbNav.next === 'function') this._rbNav.next(goTimeAttack);
+          else goTimeAttack();
         } else if (c.id === 'daily') {
           global.Game.states.change('daily', null, 'fade');
         } else if (c.id === 'ach') {
@@ -3668,6 +4017,7 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
   global.LoadingState = LoadingState;
   /* M29 parity export */
   global.IdleGifState = IdleGifState;
+global.TimeAttackState = TimeAttackState;
   global.LoginState = LoginState;
   global.RegisterState = RegisterState;
   global.MenuState = MenuState;
@@ -3692,6 +4042,7 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
     module.exports = {
       LoadingState: LoadingState,
       IdleGifState: IdleGifState,
+    TimeAttackState: TimeAttackState,
     LoginState: LoginState,
       RegisterState: RegisterState,
       MenuState: MenuState,

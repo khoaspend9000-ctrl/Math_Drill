@@ -103,14 +103,20 @@ check('T03 seeded pool renders clovers and honours the pool cap', function () {
 
 
 // ---- T04: Desktop clover caps wired into the three states
-check('T04 Desktop clover caps 20/15/15 wired via cloverRain()', function () {
+// M29.2 adds TimeAttack (Desktop main.py:1757 FallingCloverEffect(15)), so the
+// expected cap set is Menu 20 + Victory 15 + Defeat 15 + TimeAttack 15.
+check('T04 Desktop clover caps 20/15/15/15 wired via cloverRain()', function () {
   const calls = STATES.match(/cloverRain\(this\.cloverEffect,\s*(\d+)\)/g) || [];
   const caps = calls.map(function (s) { return Number(s.match(/(\d+)\)$/)[1]); }).sort();
-  assert.deepStrictEqual(caps, [15, 15, 20],
-    'expected Menu 20 + Victory 15 + Defeat 15, got ' + JSON.stringify(caps));
+  assert.deepStrictEqual(caps, [15, 15, 15, 20],
+    'expected Menu 20 + Victory 15 + Defeat 15 + TimeAttack 15, got ' + JSON.stringify(caps));
   assert.strictEqual(count(STATES, 'function cloverRain(effect, cap)'), 1, 'helper defined once');
   assert.strictEqual(count(STATES, 'new global.FallingClover(20)'), 1, 'MenuState cap 20 (main.py:422)');
-  assert.strictEqual(count(STATES, 'new global.FallingClover(15)'), 2, 'Victory/Defeat cap 15 (main.py:1091/1020)');
+  // Desktop main.py:1091 (Victory), :1020 (Defeat) and :1757 (TimeAttack) all
+// use cap 15. TimeAttack appears TWICE because Desktop builds a fresh
+// TimeAttackState per entry (main.py:176) and the Web equivalent needs a fresh
+// effect in both __init__ and enter() -- four sites are correct, not three.
+assert.strictEqual(count(STATES, 'new global.FallingClover(15)'), 4, 'Victory/Defeat cap 15 + TimeAttack cap 15 in __init__ and enter() (main.py:1091/1020/1757)');
 });
 
 // ---- T05: clover layer is painted as a background layer (Desktop z-order)
@@ -118,7 +124,8 @@ check('T05 clover layer painted before state content', function () {
   // Was 3 when only Menu/Victory/Defeat drew it. M20 added RegisterState
   // (Desktop main.py:368 FallingCloverEffect(25) + draw at main.py:398), so the
   // count is 4. The meaningful assertions are the z-order ones below.
-  assert.strictEqual(count(STATES, 'drawClover(R, this.cloverEffect)'), 4, '4 draw sites (menu, victory, defeat, register)');
+  // M29.2 adds TimeAttack (Desktop main.py:1866), so the count is now 5.
+  assert.strictEqual(count(STATES, 'drawClover(R, this.cloverEffect)'), 5, '5 draw sites (menu, victory, defeat, register, timeAttack)');
   assert.strictEqual(count(STATES, 'function drawClover(R, effect)'), 1, 'helper defined once');
   const menuBase = STATES.indexOf('class MenuState');
   const menu = STATES.indexOf('drawClover(R, this.cloverEffect)', menuBase);
@@ -137,6 +144,12 @@ check('T05 clover layer painted before state content', function () {
   const def = STATES.indexOf('drawClover(R, this.cloverEffect)', defBase);
   const defText = STATES.indexOf('CỐ LÊN NÀO! 💪', defBase);
   assert.ok(def >= 0 && defText > def, 'Defeat: clover before the panel');
+  // M29.2: Desktop main.py:1866 draws the clover before the background/temp
+  // surface, so it must precede the timer text in TimeAttackState too.
+  const taBase = STATES.indexOf('class TimeAttackState');
+  const ta = STATES.indexOf('drawClover(R, this.cloverEffect)', taBase);
+  const taTimer = STATES.indexOf("R.text('\u23f1 '", taBase);
+  assert.ok(ta >= 0 && taTimer > ta, 'TimeAttack: clover before the timer/question UI');
 });
 
 // ---- T06: the dead pre-clear frame is gone, update no longer fakes dt

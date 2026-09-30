@@ -138,6 +138,8 @@ function registerAll(manager) {
   manager.register('lesson_select', new LessonSelectState());
  manager.register('theory', new TheoryState());
   manager.register('lesson', new LessonState());
+// M29.2 TimeAttackState is a shipped state (Desktop main.py:1745).
+manager.register('time_attack', new TimeAttackState());
   manager.register('victory', new VictoryState());
   manager.register('defeat', new DefeatState());
 }
@@ -234,8 +236,12 @@ check('M4 flow: menu card "BĂ i Há»c" -> lesson_select; card khĂ³a -> th
   global.Game.states = manager;
   manager.change('menu');
   const input = new FakeInput();
-  // card Time Attack bá»‹ khĂ³a (M7) â†’ msg, váº«n á»Ÿ menu
-  input.click(680 + 240 + 25 + 120, 155 + 45);
+  // The exam card is still locked (M10) -> shows a message, stays on menu.
+  // M29.2 removed the Time Attack lock: Desktop main.py:674-676 opens it with no
+  // gate at all, so locking it was a source-proven parity defect.
+  const examCard = manager.current.cards.filter(function (c) { return c.id === 'exam'; })[0];
+  assert.ok(examCard && examCard.locked, 'exam card should still be locked');
+  input.click(examCard.x + examCard.w / 2, examCard.y + examCard.h / 2);
   manager.current.handleInput(input, 0.016);
   assert.strictEqual(manager.currentName, 'menu');
   assert.ok(manager.current.examMsgTimer > 0, 'hiá»‡n thĂ´ng bĂ¡o khĂ³a');

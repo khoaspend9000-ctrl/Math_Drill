@@ -147,6 +147,10 @@
       game.states.register('lesson_select', new LessonSelectState());
       game.states.register('theory', new TheoryState());
       game.states.register('lesson', new LessonState());
+  // M29.2 Desktop parity: TimeAttackState (main.py:1745), entry main.py:674-676.
+  if (typeof TimeAttackState === 'function') {
+    game.states.register('time_attack', new TimeAttackState());
+  }
       game.states.register('victory', new VictoryState());
       game.states.register('defeat', new DefeatState());
       // M15-B1 — XEM LỖI from victory/defeat → analysis → optional practice

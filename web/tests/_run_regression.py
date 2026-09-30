@@ -25,6 +25,7 @@ test_suites = [
     'm24_session_restore.test.js',
     'm25_1_book_flip.test.js',
     'm29_idle_gif.test.js',
+    'm29_2_timeattack_runtime.test.js',
 ]
 
 def first(pattern, text, flags=0):

@@ -84,7 +84,10 @@ check('D1-T02 clicking a locked card explains itself in plain language', functio
   const g = makeGame(1);
   const st = new statesReal.MenuState();
   g.states.current = st;
-  ['time', 'exam'].forEach(function (id) {
+  // M29.2 ships TimeAttackState (Desktop main.py:1745), so the exam card is now
+  // the ONLY locked card. Time Attack was unlocked because Desktop main.py:674-676
+  // opens it with no gate at all -- keeping it locked was a parity defect.
+  ['exam'].forEach(function (id) {
     const card = st.cards.filter(function (c) { return c.id === id; })[0];
     assert.ok(card && card.locked, id + ' must exist and stay locked');
     st.examMsg = null;
@@ -98,12 +101,16 @@ check('D1-T02 clicking a locked card explains itself in plain language', functio
   });
 });
 
-check('D1-T03 the two undelivered modes stay locked, not silently removed', function () {
+check('D1-T03 the undelivered mode stays locked and Time Attack is now unlocked', function () {
   const st = new statesReal.MenuState();
   const locked = st.cards.filter(function (c) { return !!c.locked; })
     .map(function (c) { return c.id; }).sort();
-  assert.deepStrictEqual(locked, ['exam', 'time'],
-    'Time Attack and Thi Chuyen Lop must stay visible-but-locked, got ' + JSON.stringify(locked));
+  assert.deepStrictEqual(locked, ['exam'],
+    'only Thi Chuyen Lop is still undelivered and must stay locked, got ' + JSON.stringify(locked));
+  // STRENGTHENED: the Time Attack card must now exist, be UNLOCKED, and route.
+  const timeCard = st.cards.filter(function (c) { return c.id === 'time'; })[0];
+  assert.ok(timeCard, 'Time Attack card must still be visible');
+  assert.ok(!timeCard.locked, 'Time Attack must be unlocked now that M29.2 ships it');
 });
 
 check('D2-T01 the digit keys answer the lesson question', function () {
