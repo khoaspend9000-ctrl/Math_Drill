@@ -3710,9 +3710,220 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
   }
 
   /* M10-B STATE: DAILY (game_init.py:3637-3668 claim_daily_reward) */
+﻿  // ===================================================================
+  // DailyState -- faithful port of Desktop main.py:2002-2099
+  // The Desktop DAILY CHALLENGE QUIZ. There is NO timer and NO timeout:
+  // update() (main.py:2076-2082) only ticks the book and the feedback overlay.
+  // Desktop's daily REWARD is a Menu POPUP (main.py:475-476, drawn 746-747),
+  // not a screen; the Web now exposes it as DailyRewardState.
+  // ===================================================================
   class DailyState extends BaseState {
+    constructor() { super('daily'); this._init(); }
+
+    // main.py:2003-2014 enter()
+    _init() {
+      this.gr = getPlayer().grade || 1;                 // main.py:2005
+      this.title = DAILY_CHALLENGE_TITLE;               // main.py:2006
+      this.sc = 0;                                      // main.py:2007
+      this.cc = 0;                                      // main.py:2007
+      this.tc = 10;                                     // main.py:2007  10 questions
+      this.feedback = null;                             // main.py:2008
+      this.pendingAdvance = false;                      // main.py:2009
+      this.answerTimes = [];                            // main.py:2010
+      // main.py:2011 adaptive_ai.reset()
+      if (global.adaptiveAI && typeof global.adaptiveAI.reset === 'function') {
+        global.adaptiveAI.reset();
+      }
+      // main.py:2012 back button
+      this.backBtn = { x: 810, y: 600, w: 300, h: 60, label: 'THOAT', bg: RED_BTN };
+      this.btns = [];                                   // main.py:2019
+      this.q = ''; this.ans = ''; this.op = null;       // set by next_q
+      this.nextQ();                                     // main.py:2014
+    }
+
+    // Desktop builds a fresh DailyState on every visit (main.py:680), so the
+    // StateManager-reused instance must re-apply everything.
+    enter() { this._init(); }
+
+    // main.py:2015-2020 next_q()
+    nextQ() {
+      // main.py:2016 rid = randint(1,40) if grade==1 else randint(1,60)
+      const maxRid = this.gr === 1 ? 40 : 60;
+      const rid = 1 + Math.floor(Math.random() * maxRid);
+      const pl = getPlayer();
+      const diff = (global.adaptiveAI && global.adaptiveAI.getCurrentDifficulty) ?
+        global.adaptiveAI.getCurrentDifficulty() : 3;
+      let res = null;
+      try {
+        // main.py:2018 safe_generate_question(gr, rid, difficulty, user_id)
+        res = global.Game.questionGen.generate(this.gr, rid, diff, pl.username);
+      } catch (e) { L.error('[Daily] generate error', e); }
+      if (!res || !res.question) {
+        this.q = ''; this.ans = ''; this.op = null; this.btns = [];
+        return;
+      }
+      this.q = res.question;
+      this.ans = String(res.answer);
+      this.op = res.op || null;
+      const opts = (res.options || []).map(String);
+      // main.py:2019 Button(810, 200 + i*85, 300, 65, str(o), ORANGE_BTN)
+      this.btns = opts.map(function (o, i) {
+        return { x: 810, y: 200 + i * 85, w: 300, h: 65, value: o, index: i };
+      });
+      // main.py:2020 adaptive_ai.start_question()
+      if (global.adaptiveAI && typeof global.adaptiveAI.startQuestion === 'function') {
+        global.adaptiveAI.startQuestion();
+      }
+    }
+
+    // main.py:2021-2037 _advance_question()
+    _advanceQuestion() {
+      this.cc += 1;                                              // main.py:2022
+      if (this.cc >= this.tc) {                                  // main.py:2023
+        const correctAnswers = Math.floor(this.sc / 10);         // main.py:2024
+        const accuracy = (correctAnswers / this.tc) * 100;        // main.py:2025
+        const stats = {                                           // main.py:2026-2030
+          correct: correctAnswers, total: this.tc,
+          accuracy: accuracy,
+          avg_time: (global.adaptiveAI && global.adaptiveAI.avgTime) ? global.adaptiveAI.avgTime() : 0,
+          answer_times: this.answerTimes
+        };
+        if (accuracy >= 60) {                                     // main.py:2031
+          // main.py:2032-2033 xp_earned = correct * 20
+          const xpEarned = correctAnswers * 20;
+          const pl = getPlayer();
+          if (typeof pl.addExp === 'function') pl.addExp(xpEarned);
+          // main.py:2034
+          global.Game.states.change('victory', {
+            title: 'HOAN THANH THU THACH!', score: this.sc,
+            lessonTitle: this.title, stats: stats
+          }, 'fade');
+        } else {                                                 // main.py:2035-2036
+          global.Game.states.change('defeat', {
+            title: 'CO LEN NAO! LAM LAI NHE',
+            correct: correctAnswers, total: this.tc,
+            lessonTitle: this.title, stats: stats
+          }, 'fade');
+        }
+      } else { this.nextQ(); }                                   // main.py:2037
+    }
+
+    // main.py:2038-2075 handle_event(e)
+    handleInput(input, dt) {
+      const click = input.consumeClick ? input.consumeClick() : null;
+      const key = input.consumePressedKey ? input.consumePressedKey() : null;
+      // main.py:2040-2045 while feedback is up the ONLY input is a click,
+      // which dismisses it and advances. Nothing else is processed.
+      if (this.feedback && this.feedback.active) {
+        if (click) {
+          this.feedback.active = false;
+          this.feedback.dismissed = true;
+          this.pendingAdvance = false;                           // main.py:2043
+          this._advanceQuestion();                               // main.py:2044
+        }
+        return;
+      }
+      if (click) {
+        // main.py:2047 back -> MenuState()
+        if (hit(click, this.backBtn.x, this.backBtn.y, this.backBtn.w, this.backBtn.h)) {
+          global.Game.states.change('menu', null, 'fade');
+          return;
+        }
+        // main.py:2051-2075 answer buttons, first match wins (main.py:2075 break)
+        for (let i = 0; i < this.btns.length; i++) {
+          const b = this.btns[i];
+          if (!hit(click, b.x, b.y, b.w, b.h)) continue;
+          this._answer(b.value);
+          break;
+        }
+        return;
+      }
+      // M15-D2 parity convenience: the same option the mouse path clicks.
+      if (key && key.key && key.key.indexOf('Digit') === 0) {
+        const n = parseInt(key.key.slice(5), 10);
+        if (n >= 1 && n <= this.btns.length) this._answer(this.btns[n - 1].value);
+      }
+    }
+
+    // main.py:2052-2074 the answer body
+    _answer(v) {
+      const isCorrect = String(v) === String(this.ans);           // main.py:2053
+      // main.py:2054 answer_times.append(now - question_start_time)
+      const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : 0;
+      const started = (global.adaptiveAI && global.adaptiveAI.questionStartTime) ? global.adaptiveAI.questionStartTime : now;
+      this.answerTimes.push((now - started) / 1000);
+      if (isCorrect) {
+        this.sc += 10;                                           // main.py:2057
+      } else {
+        // main.py:2059 snd_wrong.play()
+        const A = global.Game && global.Game.audio;
+        if (A && typeof A.playSfx === 'function') { try { A.playSfx('wrong'); } catch (e) { /* audio optional */ } }
+      }
+      // main.py:2062-2063 adaptive_ai.record_answer(is_correct, topic_id, "lesson")
+      if (global.adaptiveAI && typeof global.adaptiveAI.recordAnswer === 'function') {
+        global.adaptiveAI.recordAnswer(isCorrect, this.gr + '_' + this.title, 'lesson');
+      }
+      // main.py:2073 FeedbackOverlay(q, ans, str(v), op, is_correct)
+      this.feedback = {
+        question: this.q, correctAnswer: this.ans, userAnswer: String(v),
+        op: this.op, correct: isCorrect, active: true, dismissed: false
+      };
+      this.pendingAdvance = true;                                // main.py:2074
+    }
+
+    // main.py:2076-2082 update(dt) -- NO timer, NO timeout
+    update(dt) {
+      const d = dt || 0;
+      if (this.feedback && this.feedback.active) {               // main.py:2078
+        // main.py:2080-2082
+        if (this.feedback.dismissed && this.pendingAdvance) {
+          this.pendingAdvance = false;
+          this._advanceQuestion();
+        }
+      }
+    }
+
+    // main.py:2083-2099 draw(s)
+    draw(ctx, W2, H2) {
+      const R = global.Game.renderer;
+      R.clear('rgb(165,214,167)');                              // main.py:2084
+      // main.py:2085-2087 the blackboard panel
+      const bx = 80, by = 120, bw = 520, bh = 480;              // main.py:2085
+      R.fillRoundRect(bx - 10, by - 10, bw + 20, bh + 20, 15, 'rgb(101,67,33)', null, 0); // :2086
+      R.fillRoundRect(bx, by, bw, bh, 10, 'rgb(20,50,20)', null, 0);                    // :2087
+      R.text('THU THACH', 340, 180, { font: 'bold 24px Quicksand, Segoe UI, sans-serif', fill: 'rgb(255,152,0)', align: 'center', baseline: 'middle' }); // :2088
+      R.text('HANG NGAY', 340, 220, { font: 'bold 24px Quicksand, Segoe UI, sans-serif', fill: 'rgb(255,152,0)', align: 'center', baseline: 'middle' }); // :2089
+      // main.py:2091 progress bar Câu cc/tc at (110, 270, 460, 20)
+      const pw = 460, px = 110, py = 270, ph = 20;              // main.py:2091
+      R.fillRoundRect(px, py, pw, ph, 6, 'rgb(255,255,255)', null, 0);
+      const frac = this.tc > 0 ? Math.min(1, this.cc / this.tc) : 0;
+      if (frac > 0) R.fillRoundRect(px, py, Math.max(6, Math.round(pw * frac)), ph, 6, 'rgb(255,152,0)', null, 0);
+      R.text('Cau', px - 14, py + ph / 2, { font: '14px Quicksand, Segoe UI, sans-serif', fill: 'rgb(255,255,255)', align: 'right', baseline: 'middle' });
+      // main.py:2092 score + difficulty label
+      const diffLabel = (global.adaptiveAI && global.adaptiveAI.getDifficultyLabel) ? global.adaptiveAI.getDifficultyLabel() : '';
+      R.text('Diem: ' + this.sc + '  |  Do kho: ' + diffLabel, 340, 300, // :2092
+        { font: '14px Quicksand, Segoe UI, sans-serif', fill: 'rgb(255,255,255)', align: 'center', baseline: 'middle' });
+      // main.py:2093 question, multiline inside (110, 330, 460, 200)
+      const lines = wrapText(R, String(this.q), 460, 'bold 22px Quicksand, Segoe UI, sans-serif', 5);
+      lines.forEach((ln, i) => {
+        R.text(ln, 110, 330 + i * 30, { font: 'bold 22px Quicksand, Segoe UI, sans-serif', fill: 'rgb(255,255,255)', align: 'left', baseline: 'top' });
+      });
+      // main.py:2094 answer buttons (right page, vertical stack)
+      for (let i = 0; i < this.btns.length; i++) {
+        const b = this.btns[i];
+        drawBtn(R, b.x, b.y, b.w, b.h, b.value, ORANGE_BTN, { fontSize: 18, radius: 10 });
+      }
+      drawBtn(R, this.backBtn.x, this.backBtn.y, this.backBtn.w, this.backBtn.h, this.backBtn.label, this.backBtn.bg, { fontSize: 18, radius: 10 }); // :2095
+      // main.py:2096-2099 speak button (TTS) and the feedback overlay
+      if (this.feedback && this.feedback.active && typeof drawFeedbackOverlay === 'function') {
+        drawFeedbackOverlay(R, this.feedback, W2, H2);
+      }
+    }
+  }
+
+  class DailyRewardState extends BaseState {
     constructor() {
-      super('daily');
+      super('daily_reward');
       this.backBtn = { x: 40, y: 700, w: 180, h: 55 };
       this.claimBtn = { x: 520, y: 620, w: 260, h: 60 };
       this.statusMsg = '';
@@ -5037,6 +5248,7 @@ global.examGoldForScore = examGoldForScore;
   global.GachaState = GachaState;
   global.AchievementState = AchievementState;
   global.DailyState = DailyState;
+global.DailyRewardState = DailyRewardState;
   global.SkillTreeState = SkillTreeState;
   global.BagState = BagState;
   global.ProfileState = ProfileState;
@@ -5071,6 +5283,7 @@ global.examGoldForScore = examGoldForScore;
       GachaState: GachaState,
       AchievementState: AchievementState,
       DailyState: DailyState,
+    DailyRewardState: DailyRewardState,
       SkillTreeState: SkillTreeState,
       BagState: BagState,
       ProfileState: ProfileState,

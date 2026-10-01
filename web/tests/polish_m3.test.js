@@ -171,10 +171,10 @@ check('T04 GachaState result panel shows rarity color + NEW/duplicate indicator'
 });
 
 /* T05 Daily 7-day grid */
-check('T05 DailyState 7-day grid with rewards from data + current-day highlight', function () {
+check('T05 DailyRewardState 7-day grid with rewards from data + current-day highlight', function () {
   const d = freshData({ daily_streak: 3 });
   makeGame(d);
-  const s = new st.DailyState();
+  const s = new st.DailyRewardState();
   s.enter({ cfg: dailyCfg });
   assert.strictEqual(s.dataMissing, false);
   global.Game.renderer = makeRenderer();
@@ -294,10 +294,10 @@ check('T11 SkillMapState empty data shows friendly message', function () {
 });
 
 /* T12 Daily claimed + future lock */
-check('T12 Daily claimed current day shows check and locked future days', function () {
+check('T12 DailyRewardState claimed current day shows check and locked future days', function () {
   const d = freshData({ daily_streak: 2 });
   makeGame(d);
-  const s = new st.DailyState();
+  const s = new st.DailyRewardState();
   s.enter({ cfg: dailyCfg });
   s.status.claimedToday = true;
   global.Game.renderer = makeRenderer();

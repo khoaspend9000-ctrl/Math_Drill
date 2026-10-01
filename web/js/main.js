@@ -178,6 +178,12 @@
       game.states.register('gacha', new GachaState());
       game.states.register('achievement', new AchievementState());
       game.states.register('daily', new DailyState());
+      // M32.2: Desktop shows the daily REWARD as a Menu popup (main.py:475-476,
+      // drawn 746-747), not a screen. The Web has no popup layer, so the claim
+      // screen is retained under its own name as a documented Web adaptation.
+      if (typeof DailyRewardState === 'function') {
+        game.states.register('daily_reward', new DailyRewardState());
+      }
       game.states.register('skill_tree', new SkillTreeState());
       game.states.register('bag', new BagState());
       game.states.register('profile', new ProfileState()); // POLISH M3

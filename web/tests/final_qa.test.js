@@ -107,13 +107,16 @@ const click = (x, y) => ({ consumeClick: () => ({ x: x, y: y }), consumeWheel: (
 /* M29: 24 -> 25 after IdleGifState (Desktop main.py:252) was ported. The count
    moves WITH the product; the per-state registry checks below are unchanged. */
 // M30.1 adds exam_transition (Desktop main.py:3091). Count tracks the registry.
-check('FQA-T01 main.js registers all 30 shipped states', function () {
+check('FQA-T01 main.js registers all 31 shipped states', function () {
   // M29.2 adds TimeAttackState (Desktop main.py:1745). Count tracks the registry.
   // M30.2 adds final_exam (main.py:3140) and exam_result (main.py:3234).
   assert.ok(REGISTERED.indexOf('final_exam') >= 0, 'final_exam must be registered');
   assert.ok(REGISTERED.indexOf('exam_result') >= 0, 'exam_result must be registered');
   assert.ok(REGISTERED.indexOf('cardShop') >= 0, 'cardShop must be registered');
-  assert.strictEqual(REGISTERED.length, 30, 'registered=' + REGISTERED.length + ' (incl Register/Settings/Password/Review/Practice/IdleGif/TimeAttack/ExamTransition)');
+  // M32.2 adds daily_reward: Desktop shows the daily REWARD as a Menu popup
+  // (main.py:475-476, drawn 746-747), which the Web has no popup layer for.
+  assert.ok(REGISTERED.indexOf('daily_reward') >= 0, 'daily_reward must be registered');
+  assert.strictEqual(REGISTERED.length, 31, 'registered=' + REGISTERED.length + ' (incl Register/Settings/Password/Review/Practice/IdleGif/TimeAttack/ExamTransition)');
   for (const k of Object.keys(REGISTRY)) {
     assert.ok(REGISTERED.indexOf(k) >= 0, 'missing registration: ' + k);
   }
