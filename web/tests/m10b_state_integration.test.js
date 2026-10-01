@@ -69,6 +69,8 @@ function registerAll(manager) {
   manager.register('pet', new st.PetState());
   manager.register('skin', new st.SkinState());
   manager.register('gacha', new st.GachaState());
+  /* M31: main.py:719-724 routes the card button to CardShopState. */
+  manager.register('cardShop', new st.CardShopState());
   manager.register('achievement', new st.AchievementState());
   manager.register('daily', new st.DailyState());
   manager.register('skill_tree', new st.SkillTreeState());
@@ -124,7 +126,9 @@ check('T02 Menu cards route shop/skill/gacha/daily/ach/bag/pet/skin to M9 states
   registerAll(manager);
   manager.change('menu');
   const input = new FakeInput();
-  const routes = [['shop', 'shop'], ['skill', 'skill_tree'], ['gacha', 'gacha'],
+  // M31: main.py:719-724 routes the card button (main.py:463) to CardShopState.
+  if (global.Game && global.Game.player) global.Game.player.grade = 3;
+  const routes = [['shop', 'shop'], ['skill', 'skill_tree'], ['gacha', 'cardShop'],
     ['daily', 'daily'], ['ach', 'achievement'], ['bag', 'bag'], ['pet', 'pet'], ['skin', 'skin']];
   for (const [cardId, stateName] of routes) {
     manager.change('menu');

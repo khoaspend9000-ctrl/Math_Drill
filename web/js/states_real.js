@@ -55,6 +55,13 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
   const RED_BTN    = [244, 67, 54];
   const SHADOW     = [100, 100, 100];
 
+  /* game_init.py:145-152 is_young_learner(grade) -> grade <= 2.
+     Grades 1-2 keep practice/simple modes; the advanced modes (gacha,
+     Skill Tree...) are explicitly held back. */
+  function isYoungLearnerGrade(grade) {
+    try { return parseInt(grade || 1, 10) <= 2; }
+    catch (e) { return true; }
+  }
   function css(c) {
     return Array.isArray(c) ? 'rgb(' + c[0] + ',' + c[1] + ',' + c[2] + ')' : c;
   }
@@ -1585,7 +1592,21 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
         } else if (c.id === 'skill') {
           global.Game.states.change('skill_tree', null, 'fade');
         } else if (c.id === 'gacha') {
-          global.Game.states.change('gacha', null, 'fade');
+          /* M31 Desktop parity: main.py:463 declares this control as
+             gacha_normal_btn = CardButton(row4_x+360, card_y4, 140, 55,
+             "🏪", "ĐốI Thẻ", "", (130,80,220), ...)
+             and main.py:719-724 routes it to CardShopState() -- the gold
+             card-exchange shop, NOT a random gacha. The Web routed it to
+             GachaState, which is not a Desktop screen at all. Grades 1-2 are
+             blocked by is_young_learner (game_init.py:145-152). */
+          var csGrade = getPlayer().grade || 1;
+          if (isYoungLearnerGrade(csGrade)) {
+            this.examMsg = 'Tinh nang nay se mo khoa khi con len lop 3 nhe! 🌱';
+            this.examMsgTimer = 2.5;
+            L.info('[Menu] card shop blocked for young learner, grade', csGrade);
+          } else {
+            global.Game.states.change('cardShop', null, 'fade');
+          }
         } else if (c.id === 'bag') {
           global.Game.states.change('bag', null, 'fade');
         } else if (c.id === 'pet') {
@@ -4731,6 +4752,254 @@ global.ExamTransitionState = ExamTransitionState;
   }
 
 
+﻿  // ===================================================================
+  // CardShopState -- faithful port of Desktop main.py:2947-3089
+  // Entry main.py:719-724 (Menu gacha button, grade >= 3 only).
+  // Card data: game_init.py:1241-1265 (GachaBannerSystem.POOL_*).
+  // Grant:     game_init.py:1420-1436 (grant_card_direct).
+  // ===================================================================
+  const CARD_SHOP_RARITY = {                       // main.py:2956-2960
+    '3star': { label: 'Thuong',    color: [130, 190, 255], price: 80  },
+    '4star': { label: 'Hiem',      color: [200, 130, 255], price: 250 },
+    '5star': { label: 'Dac Biet',  color: [255, 215, 0],   price: 600 }
+  };
+  // game_init.py:1241-1248 POOL_5STAR
+  const CARD_SHOP_POOL_5STAR = [
+    { title: 'Than Toan Archimedes',  icon: '\uD83E\uDDED', category: '5star Huyen Thoai', content: 'Nhan doi Vang trong 5 phien choi!', effect_id: 'gold_double' },
+    { title: 'Rong So Hoc',            icon: '\uD83D\uDC09', category: '5star Huyen Thoai', content: 'Kich hoat x3 diem trong 50 cau tiep theo.', effect_id: 'score_x3_10q' },
+    { title: 'Nha Thong Thai Lao Hac', icon: '\uD83C\uDF34', category: '5star Huyen Thoai', content: 'Nhan 2 diem tuat tat cau hoi trong 5 phien.', effect_id: 'score_x2_session' },
+    { title: 'Tia Sang Pygame',       icon: '\u2728', category: '5star Huyen Thoai', content: 'Dong bang thoi gian dem nguoc 25 giay.', effect_id: 'freeze_timer_5s' },
+    { title: 'Phuong Hoang Dai Sau',   icon: '\uD83E\uDD86', category: '5star Huyen Thoai', content: 'Hoi sinh toi da 5 mang khi thua trong phien.', effect_id: 'revive_1life' },
+    { title: 'Thien Tai Einstein Jr.', icon: '\uD83E\uDDE0', category: '5star Huyen Thoai', content: 'Tang combo bonus gia tang doi trong 5 phien.', effect_id: 'combo_x2_session' }
+  ];
+  // game_init.py:1249-1257 POOL_4STAR
+  const CARD_SHOP_POOL_4STAR = [
+    { title: 'Bao Ho Thales',   icon: '\uD83E\uDDE0', category: '4star Hiem', content: 'Hien thi goi y hinh hoc trong phien.', effect_id: 'geometry_boost' },
+    { title: 'La Ban Euler',     icon: '\uD83E\uDDEE', category: '4star Hiem', content: 'Goi y dac biet cho 5 cau khac tiep theo.', effect_id: 'euler_hint' },
+    { title: 'Dinh Ly Pythago', icon: '\uD83E\uDDE0', category: '4star Hiem', content: 'Hien thi goi y tam giac vuong trong phien.', effect_id: 'pythagoras_hint' },
+    { title: 'Bo Nho Sieu Cap', icon: '\uD83E\uDDE0', category: '4star Hiem', content: 'Tang 15% EXP nhan duoc trong phien.', effect_id: 'xp_boost_15' },
+    { title: 'Dong Ho Cat',     icon: '\u23F0', category: '4star Hiem', content: '+3 giay moi cau tra loi dung (Time Attack).', effect_id: 'time_bonus_3s' },
+    { title: 'Cung Tho Logic',  icon: '\uD83E\uDD49', category: '4star Hiem', content: '10% co hoi mo cau hoi thuong sau khi dung.', effect_id: 'bonus_question_chance' },
+    { title: 'Kien Tri The',    icon: '\uD83E\uDDE1', category: '4star Hiem', content: 'Chan 1 lan mat mang trong phien nay.', effect_id: 'shield_1life' }
+  ];
+  // game_init.py:1258-1265 POOL_3STAR
+  const CARD_SHOP_POOL_3STAR = [
+    { title: 'Cong Than Toc',   icon: '\u25CF', category: '3star Thuong', content: '+10% diem cau hoi phep cong.', effect_id: 'speed_add_10' },
+    { title: 'Tru Chop Nhoang', icon: '\u25AC', category: '3star Thuong', content: 'Giam 5% thoi gian suy nghi phep tru.', effect_id: 'speed_sub_5' },
+    { title: 'Nhan Vu Bao',     icon: '\u00D7', category: '3star Thuong', content: '+8% diem cau hoi phep nhan.', effect_id: 'mul_bonus' },
+    { title: 'Chia Cat Gio',    icon: '\u00F7', category: '3star Thuong', content: 'Cau chia xuat hien tham 10%.', effect_id: 'div_more' },
+    { title: 'Ghi Nho Nhanh',   icon: '\uD83D\uDCDD', category: '3star Thuong', content: '+5% toc do ghi nho cong thuc.', effect_id: 'memory_5' },
+    { title: 'Tap Trung Cao',   icon: '\uD83C\uDFAF', category: '3star Thuong', content: 'Giam 5% xac suat mat combo.', effect_id: 'focus_combo' }
+  ];
+
+  function cardShopAllCards() {                 // main.py:2979-2988 _all_cards
+    const out = [];
+    [['3star', CARD_SHOP_POOL_3STAR], ['4star', CARD_SHOP_POOL_4STAR], ['5star', CARD_SHOP_POOL_5STAR]]
+      .forEach(function (pair) {
+        pair[1].forEach(function (c) { const card = {}; for (const k in c) card[k] = c[k]; card.rarity = pair[0]; out.push(card); });
+      });
+    return out;
+  }
+
+  // game_init.py:1420-1436 grant_card_direct
+  function grantCardDirect(title) {
+    const auth = global.Game && global.Game.auth;
+    if (!auth || typeof auth.data !== 'function') return false;
+    const d = auth.data();
+    if (!Array.isArray(d.inventory)) d.inventory = [];
+    const isNew = d.inventory.indexOf(title) < 0;
+    if (isNew) d.inventory.push(title);
+    if (!d.bag) d.bag = {};
+    d.bag[title] = (d.bag[title] || 0) + 1;
+    if (typeof auth.save === 'function') auth.save();
+    return isNew;
+  }
+
+  class CardShopState extends BaseState {
+    constructor() {
+      super('cardShop');
+      this._init();
+    }
+
+    // main.py:2962-2977 __init__
+    _init() {
+      this.backBtn = { x: 30, y: H - 70, w: 160, h: 50, label: 'Quay lai', bg: RED_BTN }; // :2963
+      this.filter = 'all';                        // :2964
+      this.filterButtons = [];                     // :2965
+      const filters = [['all', 'Tat ca', PURPLE_BTN], ['3star', 'Thuong', BLUE_BTN],
+                       ['4star', 'Hiem', PURPLE_BTN], ['5star', 'Dac Biet', ORANGE_BTN]]; // :2966-2967
+      let fx = 210;                               // :2968
+      for (let i = 0; i < filters.length; i++) {   // :2969-2971
+        this.filterButtons.push({ key: filters[i][0], x: fx, y: H - 70, w: 140, h: 50, label: filters[i][1], bg: filters[i][2] });
+        fx += 150;
+      }
+      this.msg = '';                              // :2972
+      this.msgTimer = 0;                          // :2973
+      this.msgOk = true;                          // :2974
+      this.scrollY = 0;                           // :2975
+      this.cardButtons = [];                      // :2976
+      this.shake = 0;                             // main.py:3040 trigger_shake
+      this.confettiAt = -1;                       // main.py:3041-3042
+      this._rebuild();                            // :2977
+    }
+
+    // Desktop builds a NEW CardShopState per visit (main.py:724), so every
+    // __init__ value is re-applied; the Web StateManager reuses one instance.
+    enter() { this._init(); }
+
+    // main.py:2990-3001 _rebuild()
+    _rebuild() {
+      let cards = cardShopAllCards();              // main.py:2991
+      if (this.filter !== 'all') cards = cards.filter(c => c.rarity === this.filter); // :2992-2993
+      this.cardButtons = [];                      // :2994
+      const cols = 3, w = 320, h = 130, gap = 16; // :2995
+      const x0 = 40, y0 = 130;                    // :2996
+      for (let idx = 0; idx < cards.length; idx++) { // :2997
+        const row = Math.floor(idx / cols), col = idx % cols; // :2998
+        const x = x0 + col * (w + gap);           // :2999
+        const y = y0 + row * (h + gap) + this.scrollY; // :3000
+        this.cardButtons.push({ card: cards[idx], x: x, y: y, w: w, h: h });
+      }
+    }
+
+    _authData() {
+      const auth = global.Game && global.Game.auth;
+      return (auth && typeof auth.data === 'function') ? (auth.data() || {}) : null;
+    }
+    _isAdmin() {                                  // main.py:3028
+      const auth = global.Game && global.Game.auth;
+      return !!(auth && auth.currentUser === 'admin');
+    }
+
+    // main.py:3003-3021 handle_event(e)
+    handleInput(input, dt) {
+      const click = input.consumeClick ? input.consumeClick() : null;
+      const wheel = input.consumeWheel ? input.consumeWheel() : null;
+      // main.py:3004-3006 MOUSEWHEEL -> scroll (clamped at 0) then rebuild
+      if (wheel) {
+        this.scrollY = Math.min(0, this.scrollY + wheel * 30);
+        this._rebuild();
+      }
+      // main.py:3007-3008 only MOUSEBUTTONDOWN is handled
+      if (!click) return;
+      // main.py:3009-3011 back -> MenuState with a PAGE transition
+      if (hit(click, this.backBtn.x, this.backBtn.y, this.backBtn.w, this.backBtn.h)) {
+        global.Game.states.change('menu', null, null);
+        return;
+      }
+      // main.py:3012-3017 filter buttons
+      for (let i = 0; i < this.filterButtons.length; i++) {
+        const f = this.filterButtons[i];
+        if (!hit(click, f.x, f.y, f.w, f.h)) continue;
+        this.filter = f.key;
+        this.scrollY = 0;
+        this._rebuild();
+        return;
+      }
+      // main.py:3018-3021 card click -> _buy, first match wins
+      for (let i = 0; i < this.cardButtons.length; i++) {
+        const cb = this.cardButtons[i];
+        if (!hit(click, cb.x, cb.y, cb.w, cb.h)) continue;
+        this._buy(cb.card);
+        return;
+      }
+    }
+
+    // main.py:3023-3043 _buy(card)
+    _buy(card) {
+      const info = CARD_SHOP_RARITY[card.rarity];        // main.py:3024
+      const price = info.price;                           // main.py:3025
+      const d = this._authData();
+      if (!d) return;
+      const gold = parseInt(d.gold || 0, 10) || 0;       // main.py:3027
+      const isAdmin = this._isAdmin();                    // main.py:3028
+      // main.py:3029-3033 not admin and not enough gold -> message only
+      if (!isAdmin && gold < price) {
+        this.msg = 'Chua du Vang! Can ' + price + ' Vang, ban co ' + gold + '. Con lai, hoc them de kiem Vang nhe!';
+        this.msgOk = false;
+        this.msgTimer = 2.8;
+        return;
+      }
+      // main.py:3034-3035 admin pays nothing
+      if (!isAdmin) d.gold = gold - price;
+      // main.py:3036 grant + save (grant_card_direct calls account_system.save)
+      grantCardDirect(card.title);
+      this.msg = "Da doi the '" + card.title + "' thanh cong!";
+      this.msgOk = true;
+      this.msgTimer = 2.5;
+      this.shake = 0.15;                            // main.py:3040 trigger_shake(2, 0.15)
+      this.confettiAt = Date.now();                 // main.py:3041-3042 confetti burst
+      // main.py:3043 sound_manager.play_sound("purchase")
+      const A = global.Game && global.Game.audio;
+      if (A && typeof A.playSound === 'function') { try { A.playSound('purchase'); } catch (e) { /* audio optional */ } }
+    }
+
+    // main.py:3045-3047 update(dt) -- only the message timer decays
+    update(dt) {
+      const d = dt || 0;
+      if (this.msgTimer > 0) this.msgTimer = Math.max(0, this.msgTimer - d);
+      if (this.shake > 0) this.shake = Math.max(0, this.shake - d);
+    }
+
+    // main.py:3049-3089 draw(s)
+    draw(ctx, WW, HH) {
+      const R = global.Game.renderer;
+      R.clear('rgb(18,20,34)');                                   // main.py:3050
+      R.text('CUA HANG DAI THA', W / 2, 55,                       // main.py:3051
+        { font: 'bold 34px Quicksand, Segoe UI, sans-serif', fill: 'rgb(255,230,150)', align: 'center', baseline: 'middle' });
+      R.text('Dung Vang hoc tap duoc de doi the manh thach - khong may rui!', W / 2 - 270, 95, // :3052-3053
+        { font: 'bold 16px Quicksand, Segoe UI, sans-serif', fill: 'rgb(190,190,210)', align: 'left', baseline: 'top', maxWidth: 560 });
+      const d = this._authData() || {};                          // main.py:3054-3056
+      const gold = d.gold === undefined ? 0 : d.gold;
+      const goldText = this._isAdmin() ? 'Vang: Vo han (Admin)' : ('Vang: ' + gold); // :3056
+      R.text('\uD83E\uDDFE  ' + goldText, W - 225, 44,           // main.py:3057-3058
+        { font: 'bold 20px Quicksand, Segoe UI, sans-serif', fill: 'rgb(255,215,80)', align: 'left', baseline: 'middle', maxWidth: 210 });
+      // main.py:3059-3063 filter buttons, active one is WHITE with black text
+      for (let i = 0; i < this.filterButtons.length; i++) {
+        const f = this.filterButtons[i];
+        const active = this.filter === f.key;                    // main.py:3060
+        R.fillRoundRect(f.x, f.y, f.w, f.h, 8, active ? 'rgb(255,255,255)' : css(f.bg), null, 0);
+        R.text(f.label, f.x + f.w / 2, f.y + f.h / 2,             // main.py:3061-3063
+          { font: 'bold 14px Quicksand, Segoe UI, sans-serif', fill: active ? 'rgb(0,0,0)' : 'rgb(255,255,255)', align: 'center', baseline: 'middle', maxWidth: f.w - 8 });
+      }
+      const bag = d.bag || {};                                  // main.py:3064-3065
+      for (let i = 0; i < this.cardButtons.length; i++) {
+        const cb = this.cardButtons[i];
+        // main.py:3067-3068 cull off-screen rows
+        if (cb.y + cb.h < 120 || cb.y > H - 90) continue;
+        const info = CARD_SHOP_RARITY[cb.card.rarity];           // main.py:3069
+        const owned = bag[cb.card.title] || 0;                   // main.py:3070
+        R.fillRoundRect(cb.x, cb.y, cb.w, cb.h, 14, 'rgb(35,38,58)', css(info.color), 2); // :3071-3072
+        R.text(String(cb.card.icon || '?'), cb.x + 14, cb.y + 14, // main.py:3073-3074
+          { font: '30px Segoe UI Emoji, sans-serif', fill: css(info.color), align: 'left', baseline: 'top' });
+        R.text(String(cb.card.title).slice(0, 20), cb.x + 58, cb.y + 14, // :3075
+          { font: 'bold 16px Quicksand, Segoe UI, sans-serif', fill: 'rgb(255,255,255)', align: 'left', baseline: 'top', maxWidth: cb.w - 70 });
+        // main.py:3076-3078 description truncated at 44 chars
+        let desc = String(cb.card.content || '');
+        if (desc.length > 44) desc = desc.slice(0, 44) + '...';
+        R.text(desc, cb.x + 14, cb.y + 52,                        // main.py:3079
+          { font: '12px Quicksand, Segoe UI, sans-serif', fill: 'rgb(190,190,205)', align: 'left', baseline: 'top', maxWidth: cb.w - 28 });
+        R.text(info.label, cb.x + 14, cb.y + 78,                  // main.py:3080
+          { font: '12px Quicksand, Segoe UI, sans-serif', fill: css(info.color), align: 'left', baseline: 'top' });
+        R.text(info.price + ' \uD83E\uDDFE', cb.x + cb.w - 90, cb.y + 78, // :3081-3082
+          { font: 'bold 14px Quicksand, Segoe UI, sans-serif', fill: 'rgb(255,215,80)', align: 'left', baseline: 'top' });
+        if (owned) R.text('Da co: ' + owned, cb.x + cb.w - 90, cb.y + 52, // :3083-3085
+          { font: '12px Quicksand, Segoe UI, sans-serif', fill: 'rgb(140,220,150)', align: 'left', baseline: 'top' });
+      }
+      drawBtn(R, this.backBtn.x, this.backBtn.y, this.backBtn.w, this.backBtn.h, this.backBtn.label, this.backBtn.bg, { fontSize: 16, radius: 8 });
+      // main.py:3087-3089 message, green on success / red on failure
+      if (this.msgTimer > 0 && this.msg) {
+        R.text(this.msg, W / 2, H - 45,                          // main.py:3088-3089
+          { font: '16px Quicksand, Segoe UI, sans-serif', fill: this.msgOk ? 'rgb(60,200,100)' : 'rgb(220,80,80)', align: 'center', baseline: 'middle', maxWidth: 900 });
+      }
+    }
+  }
+
+global.CardShopState = CardShopState;
+global.cardShopAllCards = cardShopAllCards;
+global.CARD_SHOP_RARITY = CARD_SHOP_RARITY;
+global.grantCardDirect = grantCardDirect;
+
 global.FinalExamState = FinalExamState;
 global.ExamResultState = ExamResultState;
 // M30.2 helper exports (game_init.py:2919 generate_hard_exam, and
@@ -4766,6 +5035,10 @@ global.examGoldForScore = examGoldForScore;
     ExamTransitionState: ExamTransitionState,
     FinalExamState: FinalExamState,
     ExamResultState: ExamResultState,
+    CardShopState: CardShopState,
+    cardShopAllCards: cardShopAllCards,
+    CARD_SHOP_RARITY: CARD_SHOP_RARITY,
+    grantCardDirect: grantCardDirect,
     generateHardExam: generateHardExam,
     examGoldForScore: examGoldForScore,
     LoginState: LoginState,

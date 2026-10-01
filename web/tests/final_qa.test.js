@@ -58,6 +58,8 @@ const REGISTRY = {
   lesson_select: st.LessonSelectState, theory: st.TheoryState, lesson: st.LessonState,
   victory: st.VictoryState, defeat: st.DefeatState, shop: st.ShopState,
   pet: st.PetState, skin: st.SkinState, gacha: st.GachaState,
+  /* M31 parity: CardShopState (main.py:2947), routed from the card button main.py:463. */
+  cardShop: st.CardShopState,
   achievement: st.AchievementState, daily: st.DailyState, skill_tree: st.SkillTreeState,
   bag: st.BagState, profile: st.ProfileState, skill_map: st.SkillMapState,
   adminPanel: st.AdminPanelState, settings: st.SettingsState, passwordChange: st.PasswordChangeState,
@@ -105,12 +107,13 @@ const click = (x, y) => ({ consumeClick: () => ({ x: x, y: y }), consumeWheel: (
 /* M29: 24 -> 25 after IdleGifState (Desktop main.py:252) was ported. The count
    moves WITH the product; the per-state registry checks below are unchanged. */
 // M30.1 adds exam_transition (Desktop main.py:3091). Count tracks the registry.
-check('FQA-T01 main.js registers all 29 shipped states', function () {
+check('FQA-T01 main.js registers all 30 shipped states', function () {
   // M29.2 adds TimeAttackState (Desktop main.py:1745). Count tracks the registry.
   // M30.2 adds final_exam (main.py:3140) and exam_result (main.py:3234).
   assert.ok(REGISTERED.indexOf('final_exam') >= 0, 'final_exam must be registered');
   assert.ok(REGISTERED.indexOf('exam_result') >= 0, 'exam_result must be registered');
-  assert.strictEqual(REGISTERED.length, 29, 'registered=' + REGISTERED.length + ' (incl Register/Settings/Password/Review/Practice/IdleGif/TimeAttack/ExamTransition)');
+  assert.ok(REGISTERED.indexOf('cardShop') >= 0, 'cardShop must be registered');
+  assert.strictEqual(REGISTERED.length, 30, 'registered=' + REGISTERED.length + ' (incl Register/Settings/Password/Review/Practice/IdleGif/TimeAttack/ExamTransition)');
   for (const k of Object.keys(REGISTRY)) {
     assert.ok(REGISTERED.indexOf(k) >= 0, 'missing registration: ' + k);
   }
@@ -188,11 +191,15 @@ check('FQA-T07 input is ignored while a transition is active', function () {
 
 /* T08/T09 — menu card routing + locked cards (behavioural) */
 const MENU_TARGET = { lesson: 'lesson_select', daily: 'daily', ach: 'achievement',
-  profile: 'profile', shop: 'shop', skill: 'skill_tree', gacha: 'gacha',
+  profile: 'profile', shop: 'shop', skill: 'skill_tree', gacha: 'cardShop',
   bag: 'bag', pet: 'pet', skin: 'skin' };
 check('FQA-T08 every menu mode card routes to its registered screen', function () {
   for (const id of Object.keys(MENU_TARGET)) {
     const m = makeGame(freshData());
+    // M31: main.py:719-724 routes the card button (main.py:463) to CardShopState,
+    // gated by is_young_learner (game_init.py:145). makeGame() rebuilds the
+    // player at grade 1, so relax the gate for this one card inside the loop.
+    if (id === 'gacha' && global.Game && global.Game.player) global.Game.player.grade = 3;
     m.register('menu', new st.MenuState());
     m.register(MENU_TARGET[id], new REGISTRY[MENU_TARGET[id]]());
     m.change('menu', null, null);

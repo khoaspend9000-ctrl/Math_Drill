@@ -158,7 +158,11 @@
   if (typeof ExamResultState === 'function') {
     game.states.register('exam_result', new ExamResultState(0));
   }
-  // M29.2 Desktop parity: TimeAttackState (main.py:1745), entry main.py:674-676.
+
+  // M31 Desktop parity: CardShopState (main.py:2947), entry main.py:719-724.
+  if (typeof CardShopState === 'function') {
+    game.states.register('cardShop', new CardShopState());
+  }  // M29.2 Desktop parity: TimeAttackState (main.py:1745), entry main.py:674-676.
   if (typeof TimeAttackState === 'function') {
     game.states.register('time_attack', new TimeAttackState());
   }
