@@ -3789,10 +3789,16 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
           answer_times: this.answerTimes
         };
         if (accuracy >= 60) {                                     // main.py:2031
-          // main.py:2032-2033 xp_earned = correct * 20
+          // main.py:2032-2033 xp_earned = correct * 20, then add_xp(xp)
+          // Desktop add_xp (game_init.py:370-374) passes the account system so
+          // PlayerData.add_exp syncs d["xp"]/d["level"], and THEN calls
+          // account_system.save(). Omitting either loses the level-up sync or
+          // the persistence, so mirror both.
           const xpEarned = correctAnswers * 20;
           const pl = getPlayer();
-          if (typeof pl.addExp === 'function') pl.addExp(xpEarned);
+          const auth = global.Game && global.Game.auth;
+          if (typeof pl.addExp === 'function') pl.addExp(xpEarned, auth);
+          if (auth && typeof auth.save === 'function') auth.save();
           // main.py:2034
           global.Game.states.change('victory', {
             title: 'HOAN THANH THU THACH!', score: this.sc,
