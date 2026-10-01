@@ -27,6 +27,7 @@ test_suites = [
     'm29_idle_gif.test.js',
     'm29_2_timeattack_runtime.test.js',
     'm30_1_exam_transition.test.js',
+    'm30_2_final_exam_result.test.js',
 ]
 
 def first(pattern, text, flags=0):

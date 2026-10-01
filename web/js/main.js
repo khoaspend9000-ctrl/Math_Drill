@@ -151,6 +151,13 @@
   if (typeof ExamTransitionState === 'function') {
     game.states.register('exam_transition', new ExamTransitionState());
   }
+  // M30.2 Desktop parity: FinalExamState (main.py:3140) + ExamResultState (main.py:3234).
+  if (typeof FinalExamState === 'function') {
+    game.states.register('final_exam', new FinalExamState());
+  }
+  if (typeof ExamResultState === 'function') {
+    game.states.register('exam_result', new ExamResultState(0));
+  }
   // M29.2 Desktop parity: TimeAttackState (main.py:1745), entry main.py:674-676.
   if (typeof TimeAttackState === 'function') {
     game.states.register('time_attack', new TimeAttackState());

@@ -4168,6 +4168,576 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
   global.IdleGifState = IdleGifState;
 global.TimeAttackState = TimeAttackState;
 global.ExamTransitionState = ExamTransitionState;
+
+  const RI = (a, b) => a + Math.floor(Math.random() * (b - a + 1));   // random.randint
+  const RF = (a, b) => a + Math.random() * (b - a);                  // random.uniform
+  const RS = (arr) => arr[Math.floor(Math.random() * arr.length)];   // random.choice
+  const RSHUF = (arr) => { const a = arr.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const t = a[i]; a[i] = a[j]; a[j] = t; } return a; };
+  const RSAMPLE = (lo, hi, k) => {                       // random.sample(range(lo,hi),k)
+    const pool = []; for (let v = lo; v < hi; v++) pool.push(v);
+    const out = []; while (out.length < k && pool.length) out.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
+    return out;
+  };
+  const RND1 = (a, b) => Math.round(RF(a, b) * 10) / 10;  // round(uniform(..),1)
+  const RNDn = (a, b, n) => { const f = Math.pow(10, n); return Math.round(RF(a, b) * f) / f; };
+
+  function generateHardExam(grade) {
+    const questions = [];
+    const mcq = (q, opts, correct) => questions.push({ type: 'mcq', q: q, opts: opts, correct: correct, user_ans: null });
+    const inp = (q, correct) => questions.push({ type: 'input', q: q, correct: correct, user_ans: '' });
+
+    if (grade === 1) {
+      // :2924-2938 Bai 1: 2 cong + 2 tru
+      for (let i = 0; i < 4; i++) {
+        let a, b, ans;
+        if (i < 2) { a = RI(20, 50); b = RI(20, 50); ans = a + b; }
+        else { a = RI(40, 100); b = RI(10, 40); ans = a - b; }
+        inp('Bai 1.' + (i + 1) + ': Dat tinh roi tinh: ' + a + (i < 2 ? ' + ' : ' - ') + b, String(ans));
+      }
+      // :2940-2952 Bai 2: sap xep so
+      const nums = RSAMPLE(10, 100, 4);
+      mcq('Bai 2: Sap xep cac so ' + nums.join(', ') + ' theo thu tu tang dan:',
+        [nums.slice().sort().join(','), nums.slice().sort().reverse().join(','), [nums[2], nums[0], nums[3], nums[1]].join(','), [nums[1], nums[3], nums[0], nums[2]].join(',')],
+        nums.slice().sort().join(','));
+      // :2954-2961 Bai 3: so be nhat
+      const nc = RSAMPLE(20, 100, 4);
+      mcq('Bai 3: Khoanh tron vao so be nhat trong cac so: ' + nc.join(', '),
+        [String(Math.min.apply(null, nc)), String(Math.max.apply(null, nc)), String(nc[1]), String(nc[2])], String(Math.min.apply(null, nc)));
+      // :2963-2970 Bai 4
+      const a4 = RI(40, 90), b4 = RI(10, 40);
+      inp('Bai 4: Dien so thich hop vao cho cham: ' + a4 + ' - ...... = ' + (a4 - b4), String(b4));
+      // :2972-2980 Bai 5
+      const a5 = RI(10, 40), b5 = RI(10, 40), c5 = RI(5, 20);
+      inp('Bai 5: Tinh: ' + a5 + ' + ' + b5 + ' - ' + c5 + ' = ', String(a5 + b5 - c5));
+      // :2982-2988 Bai 6
+      mcq('Bai 6: Hinh duoi day co bao nhieu doan thang?\n(Tham khao hinh co 3-5 doan thang)', ['3', '4', '5', '6'], RS(['3', '4', '5']));
+      // :2990-2997 Bai 7
+      const t7 = RI(40, 80), p7 = RI(10, 30);
+      inp('Bai 7: An co ' + t7 + ' qua tao, An cho em ' + p7 + ' qua. Hoi An con bao nhieu qua tao?', String(t7 - p7));
+      // :2999-3006 Bai 8
+      const ch = RS([40, 50, 60]), du = RI(10, 30);
+      inp('Bai 8: Nha Lan nuoi ' + (ch + du) + ' con ga va vit, trong do co ' + Math.floor(ch / 10) + ' chuc con ga. Hoi nha Lan nuoi bao nhieu con vit?', String(du));
+    } else if (grade === 2) {
+      // :3011-3026 Cau 1
+      const h = RI(1, 9), t = RI(0, 9), o = RI(0, 9);
+      const cn = h * 100 + t * 10 + o;
+      mcq('Cau 1: So gom ' + h + ' tram, ' + t + ' chuc va ' + o + ' don vi la:',
+        RSHUF([String(cn), String(h * 100 + o * 10 + t), String(t * 100 + h * 10 + o), String(o * 100 + t * 10 + h)]), String(cn));
+      // :3028-3042 Cau 2
+      const h2 = RI(1, 5), o2 = RI(1, 9);
+      const cn2 = h2 * 100 + o2;
+      // :3040 `if tens == 0` reads the PREVIOUS loop's `tens`; reproduce exactly.
+      const prevTens = t;
+      mcq('Cau 2: So ' + cn2 + ' duoc doc la:',
+        [h2 + ' tram linh ' + o2, h2 + ' khong ' + o2, h2 + ' muoi ' + o2, h2 + ' tram khong ' + o2],
+        prevTens === 0 ? (h2 + ' tram linh ' + o2) : (h2 + ' tram khong ' + o2));
+      // :3044-3053 Cau 3
+      const d3 = RI(10, 30), e3 = RI(2, 5), f3 = Math.floor(d3 / e3);
+      mcq('Cau 3: Trong phep nhan ' + d3 + ' : ' + e3 + ' = ' + f3 + ', so ' + f3 + ' duoc goi la:',
+        ['Thuong', 'Tong', 'Tich', 'So hang'], 'Thuong');
+      // :3055-3062 Cau 4
+      const n4 = RSAMPLE(100, 999, 4);
+      mcq('Cau 4: So be nhat trong cac so ' + n4.join(', ') + ' la:',
+        [String(Math.min.apply(null, n4)), String(Math.max.apply(null, n4)), String(n4[1]), String(n4[2])], String(Math.min.apply(null, n4)));
+      // :3064-3074 Cau 5
+      const a5 = RI(10, 30), b5 = RI(20, 40), c5 = RI(10, 30);
+      const tt5 = a5 + b5 + c5;
+      mcq('Cau 5: Tinh ' + a5 + 'kg + ' + b5 + 'kg + ' + c5 + 'kg = .....kg',
+        [String(tt5), String(tt5 + 10), String(tt5 - 5), String(tt5 + 7)], String(tt5));
+      // :3076-3084 Cau 6
+      const shapes = ['khoi tru', 'khoi lap phuong', 'khoi cau', 'khoi hop chu nhat'];
+      RS(shapes);
+      mcq('Cau 6: Qua bong co hinh:', shapes, 'khoi cau');
+      // :3086-3099 Cau 7
+      const stmts = [
+        [RI(100, 500) + ' + ' + RI(100, 500) + ' = ' + RI(200, 1000), 'D'],
+        [RI(500, 900) + ' - ' + RI(100, 400) + ' = ' + RI(100, 800), 'S'],
+        [RI(10, 50) + ' : ' + RI(2, 5) + ' + ' + RI(60, 80) + ' = ' + RI(70, 90), 'S'],
+        [RI(100, 500) + ' < ' + RI(600, 999), 'D']
+      ];
+      const pick = RS(stmts);
+      mcq('Cau 7: Phep tinh ' + pick[0] + ' la:', ['Dung', 'Sai'], pick[1]);
+      // :3102-3116 Bai 8
+      for (let i = 0; i < 2; i++) {
+        const a = RI(200, 500), b = RI(100, 300);
+        inp('Bai 8.' + (i + 1) + ': Dat tinh roi tinh: ' + a + ' - ' + b, String(a - b));
+      }
+      // :3118-3125 Bai 9
+      const mo = RI(200, 400), more = RI(10, 50);
+      inp('Bai 9: Mot cua hang buoi sang ban duoc ' + mo + ' kg gao, buoi chieu ban nhieu hon buoi sang ' + more + ' kg gao. Hoi buoi chieu ban duoc bao nhieu ki-lo-gam gao?', String(mo + more));
+      // :3127-3133 Bai 10
+      const w = [RI(1, 5) * 100, RI(1, 3) * 100, RI(50, 200)];
+      inp('Bai 10: Quan sat hinh anh va ghi so ki-lo-gram tuong ung: ' + w[0] + 'g, ' + w[1] + 'g, ' + w[2] + 'g. Chuyen doi sang kg?',
+        w[0] / 100 + ', ' + w[1] / 100 + ', ' + w[2] / 1000);
+    } else if (grade === 3) {
+      // :3138-3145 Cau 1
+      const n1 = RSAMPLE(8000, 9000, 4);
+      mcq('Cau 1: So lon nhat trong cac so ' + n1.join(', ') + ' la:',
+        [String(Math.max.apply(null, n1)), String(n1[0]), String(n1[1]), String(n1[2])], String(Math.max.apply(null, n1)));
+      // :3147-3158 Cau 2
+      mcq('Cau 2: Chon khang dinh SAI trong cac khang dinh sau:',
+        ['Do dai ban kinh bang mot nua do dai duong kinh', 'Do dai duong kinh gap doi ban kinh', 'Do dai cac ban kinh khong bang nhau', 'Tam cua hinh tron la trung diem cua duong kinh'],
+        'Do dai cac ban kinh khong bang nhau');
+      // :3160-3166 Cau 3
+      mcq('Cau 3: Ngay 27 thang 2 la ngay chu nhat. Hoi ngay 01 thang 3 cung nam la ngay:',
+        ['Thu sau', 'Thu ba', 'Thu tu', 'Thu nam'], 'Thu tu');
+      // :3168-3177 Cau 4
+      const tot = RI(60, 100), fr = RS([2, 3, 4]);
+      const rem = tot - Math.floor(tot / fr);
+      mcq('Cau 4: Mot cuon vai dai ' + tot + ' m, da ban 1/' + fr + ' cuon vai. Hoi cuon vai con lai bao nhieu m?',
+        [String(rem), String(Math.floor(tot / fr)), String(tot - fr), String(tot + fr)], String(rem));
+      // :3179-3186 Cau 5
+      const st = RI(1000, 5000);
+      mcq('Cau 5: Viet so thich hop vao cho cham: ' + st + ', ' + (st + 1) + ', ..., ' + (st + 3),
+        [String(st - 1), String(st - 2), String(st + 2), String(st + 4)], String(st + 2));
+      // :3188-3194 Cau 6
+      mcq('Cau 6: So be nhat co 3 chu so khac nhau la:', ['100', '101', '102', '103'], '102');
+      // :3197-3205 Cau 7
+      const m1 = RI(1000, 5000), m2 = m1 + RI(1, 10);
+      mcq('Cau 7: Dien dau thich hop: ' + m1 + ' ... ' + m2, ['>', '<', '='], '<');
+      // :3207-3214 Cau 8
+      const xv = RI(3000, 6000), sv = RI(1000, 2000);
+      inp('Cau 8: Tim x biet: x - ' + sv + ' = ' + (xv - sv), String(xv));
+      // :3216-3223 Cau 9
+      const xv2 = RI(2000, 3000), mv = RI(2, 5);
+      inp('Cau 9: Tim x biet: x * ' + mv + ' = ' + (xv2 * mv), String(xv2));
+      // :3225-3235 Cau 10
+      const km = RI(50, 150), lit = RI(5, 15), nl = RI(3, 8);
+      inp('Cau 10: Mot o to chay quang duong dai ' + km + ' km het ' + lit + ' lit xang. Hoi voi cach chay nhu the, khi chay het ' + nl + ' lit xang thi o to do chay duoc quang duong bao nhieu km?',
+        String(Math.floor(km / lit) * nl));
+    } else if (grade === 4) {
+      // :3240-3255 Cau 1
+      const mi = RI(100, 999), th = RI(10, 99), un = RI(100, 999);
+      const pad3 = (n) => ('00' + n).slice(-3);
+      mcq('Cau 1: So ' + mi + ' ' + pad3(th) + ' ' + pad3(un) + ' doc la:',
+        [mi + ' trieu ' + th + ' nghin ' + un, mi + ' trieu khong tram ' + th + ' nghin ' + un, mi + ' trieu ' + th + ' tram ' + un, mi + ' trieu khong ' + th + ' nghin ' + un],
+        mi + ' trieu ' + th + ' nghin ' + un);
+      // :3257-3266 Cau 2
+      const g2a = RI(400000, 600000), g2b = RI(400000, 500000), tot2 = g2a + g2b;
+      mcq('Cau 2: Tong cua hai so ' + g2a + ' va ' + g2b + ' la:',
+        [String(tot2), String(tot2 - 100), String(tot2 + 100), String(tot2 + 200)], String(tot2));
+      // :3268-3276 Cau 3
+      const n1 = RI(2, 9), n2 = RI(100, 500);
+      mcq('Cau 3: ' + n1 + ' x ' + n2 + ' = ' + n2 + ' x ... So thich hop dien vao cho cham la:',
+        [String(n1), String(n2), String(n1 + 1), String(n2 + 1)], String(n1));
+      // :3278-3284 Cau 4
+      mcq('Cau 4: Thoi gian di may bay tu Ha Noi den TP.HCM khoang bao lau:',
+        ['30 phut', '1 ngay', '1 tuan', '2 gio'], '2 gio');
+      // :3286-3294 Cau 5
+      RS([[1, 2], [3, 4], [2, 3], [5, 6]]);
+      mcq('Cau 5: Trong cac phan so 1/2, 3/4, 2/3, 5/6, phan so nao la lon nhat:',
+        ['1/2', '3/4', '2/3', '5/6'], '5/6');
+      // :3296-3304 Cau 6
+      const av = [RI(140, 160), RI(140, 160), RI(140, 160)];
+      const avg = Math.floor(av.reduce(function (a, b) { return a + b; }, 0) / av.length);
+      const sv6 = av.reduce(function (a, b) { return a + b; }, 0);
+      mcq('Cau 6: Trung binh cong cua cac so ' + av.join(', ') + ' la:',
+        [String(avg), String(avg - 1), String(avg + 1), String(sv6)], String(avg));
+      // :3306-3314 Cau 7
+      const red = RI(2, 5), blue = RI(1, 3);
+      mcq('Cau 7: Tui co ' + red + ' vien bi do, ' + blue + ' vien bi xanh. Lay ngau nhien 2 vien. Khong dinh \'Khong the lay duoc 2 vien bi xanh\' la:',
+        ['Dung', 'Sai'], blue >= 2 ? 'Sai' : 'Dung');
+      // :3316-3324 Cau 8
+      const av8 = RI(2, 5);
+      const res8 = 2514 * av8 + 2458;
+      mcq('Cau 8: Gia tri cua bieu thuc 2514 x a + 2458 voi a = ' + av8 + ' la:',
+        [String(res8), String(res8 + 1000), String(res8 - 1000), String(res8 + 100)], String(res8));
+      // :3327-3342 Cau 9,10
+      for (let i = 0; i < 2; i++) {
+        let a = RI(10000, 50000), b = RI(10000, 50000), ans, op;
+        if (i === 0) { ans = a + b; op = '+'; }
+        else { a = Math.max(a, b) + RI(1000, 5000); ans = a - b; op = '-'; }
+        inp('Cau ' + (9 + i) + ': Dat tinh roi tinh: ' + a + ' ' + op + ' ' + b, String(ans));
+      }
+      // :3344-3352 Cau 11
+      const met = RI(1, 9), cm2 = RI(10, 99);
+      inp('Cau 11: Dien so thich hop: ' + met + 'm' + cm2 + 'cm2 = ..... cm2', String(met * 10000 + cm2));
+      // :3353-3359 Cau 12
+      const cen = RI(1, 10);
+      inp('Cau 12: ' + cen + ' the ky = ..... nam', String(cen * 100));
+      // :3362-3372 Cau 13
+      const per = RI(100, 200), dif = RI(10, 30);
+      const half = Math.floor(per / 2);
+      const len = Math.floor((half + dif) / 2);
+      const wid = half - len;
+      inp('Cau 13: Chu vi san cong nho nhat la ' + per + ' m. Chieu dai hon chieu rong ' + dif + ' m. Tinh dien tich san?', String(len * wid));
+    } else if (grade === 5) {
+      // :3377-3388 Cau 1
+      mcq('Cau 1: Phat bieu nao sau day dung?',
+        ['Duong kinh bang ban kinh', 'Duong kinh hon ban kinh 2 don vi', 'Duong kinh gap 2 lan ban kinh', 'Ban kinh gap 2 lan duong kinh'], 'Duong kinh gap 2 lan ban kinh');
+      // :3390-3398 Cau 2
+      const pct = RS([157, 25, 50, 75, 125]);
+      const dv = pct / 100;
+      mcq('Cau 2: ' + pct + '% = .........', [String(dv), String(pct), String(dv * 10), String(dv / 10)], String(dv));
+      // :3400-3409 Cau 3
+      const a3 = RNDn(100, 500, RI(1, 2));
+      const fac = RS([0.01, 0.1, 10, 100]);
+      const r3 = RNDn(a3 * fac, a3 * fac, 4);
+      mcq('Cau 3: ' + a3 + ' x ....... = ' + r3 + '. So dien vao cho cham la:',
+        [String(fac), String(fac * 10), String(fac / 10), String(fac * 100)], String(fac));
+      // :3411-3420 Cau 4
+      const a4 = RND1(2, 5), lim4 = RND1(15, 20);
+      const maxy = Math.floor(lim4 / a4);
+      mcq('Cau 4: Co bao nhieu so tu nhien y thoa man ' + a4 + ' x y < ' + lim4 + '?',
+        [String(maxy), String(maxy + 1), String(maxy - 1), String(maxy + 2)], String(maxy));
+      // :3422-3431 Cau 5
+      const down = RND1(12, 15), up = RND1(6, 9);
+      const wsp = RND1((down - up) / 2, (down - up) / 2);
+      mcq('Cau 5: Thuyen xuoi dong ' + down + ' km/gi, nguoc dong ' + up + ' km/gi. Van toc dong nuoc la:',
+        [String(wsp), String(wsp * 2), String(wsp + 1), String(wsp - 1)], String(wsp));
+      // :3433-3442 Cau 6
+      const m3 = RI(1, 9), cm3 = RI(10, 999);
+      const tot3 = m3 * 1000000 + cm3;
+      mcq('Cau 6: So thich hop de ' + m3 + 'm3 ' + cm3 + 'cm3 = ..... cm3 la:',
+        [String(tot3), String(m3 * 1000 + cm3), String(m3 * 10000 + cm3), String(m3 * 100 + cm3)], String(tot3));
+      // :3444-3452 Cau 7
+      const rr = RS([5, 7, 10]);
+      const ar = RND1(3.14 * rr * rr, 3.14 * rr * rr);
+      mcq('Cau 7: Hinh tron co duong kinh ' + (rr * 2) + ' cm. Dien tich la:',
+        [String(ar), String(ar / 2), String(ar * 2), String(ar + 10)], String(ar));
+      // :3455-3462 Cau 8
+      const mins = RS([135, 150, 180, 225]);
+      inp('Cau 8: ' + mins + ' phut = ..... gio', String(mins / 60));
+      // :3463-3471 Cau 9
+      const kg = RI(1, 100), g = RI(1, 99);
+      inp('Cau 9: ' + kg + 'kg ' + g + 'g = ..... kg', String(kg + g / 1000));
+      // :3473-3481 Cau 10
+      const a10 = RND1(10, 100), b10 = RND1(2, 10);
+      inp('Cau 10: Dat tinh roi tinh: ' + a10 + ' x ' + b10, String(RNDn(a10 * b10, a10 * b10, 2)));
+      // :3483-3495 Cau 11
+      const dist = RS([100, 120, 150]);
+      const sh = RI(6, 8), eh = sh + RI(2, 3);
+      const rest = RS([15, 20, 30]);
+      const actual = (eh - sh) * 60 - rest;
+      inp('Cau 11: Quang duong AB dai ' + dist + ' km. O to di tu A luc ' + sh + ' gio den B luc ' + eh + ' gio, nghi ' + rest + ' phut. Xe may di voi van toc bang 60% van toc o to. Tinh van toc xe may?',
+        String(Math.trunc((dist / (actual / 60)) * 0.6)));
+    } else {
+      // :3498-3516
+      for (let i = 0; i < 7; i++) {
+        const a = RI(20 * grade, 100 * grade), b = RI(10, 50);
+        const op = RS(['+', '-']);
+        const ans = op === '+' ? a + b : a - b;
+        mcq('Cau ' + (i + 1) + ': Tinh gia tri bieu thuc: ' + a + ' ' + op + ' ' + b,
+          RSHUF([String(ans), String(ans + 2), String(ans - 5), String(ans + 10)]), String(ans));
+      }
+      for (let i = 0; i < 3; i++) {
+        const n1 = RI(50, 150), n2 = RI(20, 40);
+        inp('Cau ' + (i + 8) + ': Mot cua hang co ' + n1 + ' met vai, da ban ' + n2 + ' met. Hoi con lai bao nhieu met vai?', String(n1 - n2));
+      }
+    }
+    return questions;
+  }
+
+﻿  // ---- Desktop game_init.py:380-395 reward_gold_for_result(mode_key,score,accuracy) ----
+  // main.py:3244: reward_gold_for_result("mock_exam", self.score * 10, self.score * 10)
+  //   mode_bonus["mock_exam"] = 30            (game_init.py:386)
+  //   score_part = max(0, int(score)) // 2    (game_init.py:391)
+  //   acc_part   = int(max(0, accuracy) // 10)(game_init.py:392)
+  //   total      = base + score_part + acc_part, then add_gold(total)
+  // With score*10 passed for both: score_part = score*5, acc_part = score,
+  // so total = 30 + 6*score. Reproduced as arithmetic, not a magic number.
+  function examGoldForScore(score) {
+    const s = Math.max(0, Math.trunc(Number(score) || 0));
+    const scaled = s * 10;                       // main.py:3244 passes score*10 twice
+    const base = 30;                             // game_init.py:386 mock_exam
+    const scorePart = Math.trunc(scaled) / 2 | 0;// game_init.py:391 (// in py = floor for non-negative)
+    const accPart = Math.trunc(Math.max(0, scaled) / 10);
+    return base + scorePart + accPart;
+  }
+  global.examGoldForScore = examGoldForScore;
+
+  // ===================================================================
+  // FinalExamState -- faithful port of Desktop main.py:3140-3233
+  // ===================================================================
+  class FinalExamState extends BaseState {
+    constructor() {
+      super('final_exam');
+      this._init();
+    }
+
+    // main.py:3141-3151 __init__
+    _init() {
+      const auth = global.Game && global.Game.auth;
+      const d = (auth && typeof auth.data === 'function') ? (auth.data() || {}) : {};
+      this.grade = d.grade || 1;                        // main.py:3142
+      this.questions = global.generateHardExam(this.grade); // main.py:3143
+      this.current_q = 0;                                // main.py:3144
+      this.score = 0;                                    // main.py:3145
+      this.finished = false;                             // main.py:3146
+      this.input_text = '';                              // main.py:3147
+      // main.py:3148-3151 four Buttons
+      this.backBtn   = { x: 20,          y: H - 75,  w: 200, h: 60, label: 'THOAT',       bg: RED_BTN };
+      this.submitBtn = { x: W / 2 - 125, y: H - 120, w: 250, h: 60, label: 'NOP BAI',     bg: GREEN_BTN };
+      this.nextBtn   = { x: W - 250,     y: H - 120, w: 200, h: 60, label: 'CAU SAU',    bg: BLUE_BTN };
+      this.prevBtn   = { x: 50,          y: H - 120, w: 200, h: 60, label: 'CAU TRUOC',  bg: BLUE_BTN };
+      this.optionRects = [];                             // main.py:3178 geometry
+    }
+
+    // Desktop constructs a NEW FinalExamState per run (main.py:3118), so every
+    // __init__ value is re-applied. The Web StateManager keeps ONE instance, so
+    // without this the second exam would inherit the first exam's questions,
+    // index, score and typed text (the M29.2 state-reuse class of bug).
+    enter() { this._init(); }
+
+    // main.py:3210-3216 option grid: 2 columns x 2 rows, 240x60, gap 260/80
+    _buildOptionRects(q) {
+      this.optionRects = [];
+      if (q.type !== 'mcq') return;
+      for (let i = 0; i < q.opts.length; i++) {
+        this.optionRects.push({
+          x: W / 2 - 250 + (i % 2) * 260,               // main.py:3178
+          y: 350 + Math.floor(i / 2) * 80,               // main.py:3178
+          w: 240, h: 60, index: i, value: q.opts[i]
+        });
+      }
+    }
+
+    // main.py:3152-3189 handle_event(e)
+    handleInput(input, dt) {
+      const click = input.consumeClick ? input.consumeClick() : null;
+      const key = input.consumePressedKey ? input.consumePressedKey() : null;
+      // main.py:3153 once finished, all input is ignored
+      if (this.finished) return;
+      if (!this.questions.length) return;
+      const q = this.questions[this.current_q];
+      if (!q) return;
+      if (click) {
+        // main.py:3156-3158 back -> MenuState()
+        if (hit(click, this.backBtn.x, this.backBtn.y, this.backBtn.w, this.backBtn.h)) { this._toMenu(); return; }
+        // main.py:3159-3162 submit -> score then ExamResultState(score)
+        if (hit(click, this.submitBtn.x, this.submitBtn.y, this.submitBtn.w, this.submitBtn.h)) {
+          this._calculateScore();
+          this._toResult();
+          return;
+        }
+        // main.py:3163-3168 next (bounded by the last question)
+        if (hit(click, this.nextBtn.x, this.nextBtn.y, this.nextBtn.w, this.nextBtn.h) && this.current_q < this.questions.length - 1) {
+          if (q.type === 'input') q.user_ans = this.input_text;      // main.py:3164-3165
+          this.current_q += 1;                                        // main.py:3166
+          const nq = this.questions[this.current_q];
+          this.input_text = (nq && nq.type === 'input') ? (nq.user_ans || '') : ''; // :3167
+          this._buildOptionRects(nq);
+          return;
+        }
+        // main.py:3169-3174 prev (bounded by the first question)
+        if (hit(click, this.prevBtn.x, this.prevBtn.y, this.prevBtn.w, this.prevBtn.h) && this.current_q > 0) {
+          if (q.type === 'input') q.user_ans = this.input_text;      // main.py:3170-3171
+          this.current_q -= 1;                                        // main.py:3172
+          const pq = this.questions[this.current_q];
+          this.input_text = (pq && pq.type === 'input') ? (pq.user_ans || '') : ''; // :3173
+          this._buildOptionRects(pq);
+          return;
+        }
+        // main.py:3176-3181 MCQ option click; first match wins (main.py:3181 break)
+        if (q.type === 'mcq') {
+          for (let i = 0; i < this.optionRects.length; i++) {
+            const r = this.optionRects[i];
+            if (click.x >= r.x && click.x <= r.x + r.w && click.y >= r.y && click.y <= r.y + r.h) {
+              q.user_ans = r.value;                                   // main.py:3180
+              break;                                                  // main.py:3181
+            }
+          }
+        }
+      }
+      // main.py:3182-3189 KEYDOWN, and only for "input" questions
+      if (key && q.type === 'input') {
+        const k = key.key;
+        if (k === 'Backspace') {
+          this.input_text = this.input_text.slice(0, -1);             // main.py:3184
+        } else if (k === 'Enter' || k === 'NumpadEnter') {
+          q.user_ans = this.input_text;                               // main.py:3186
+        } else if (k && k.length === 1) {
+          // main.py:3187-3189 digits or '-', capped at 10 characters
+          if ((k >= '0' && k <= '9') || k === '-') {
+            if (this.input_text.length < 10) this.input_text += k;
+          }
+        }
+      }
+    }
+
+    // main.py:3190-3199 _calculate_score()
+    _calculateScore() {
+      let score = 0;                                                   // main.py:3191
+      for (let i = 0; i < this.questions.length; i++) {                // main.py:3192
+        const q = this.questions[i];
+        if (q.type === 'mcq') {
+          if (String(q.user_ans) === String(q.correct)) score += 1;     // main.py:3193-3195
+        } else {
+          // main.py:3196-3198 input: str(user_ans).strip() == correct
+          if (String(q.user_ans === null || q.user_ans === undefined ? '' : q.user_ans).trim() === String(q.correct)) score += 1;
+        }
+      }
+      this.score = score;                                              // main.py:3199
+      this.finished = true;                                            // main.py:3199
+      return score;
+    }
+
+    // main.py:3200 update(dt): pass -- the exam has NO timer at all
+    update(dt) { /* Desktop: `def update(self, dt): pass` (main.py:3200) */ }
+
+    // main.py:3201-3233 draw(s)
+    draw(ctx, WW, HH) {
+      const R = global.Game.renderer;
+      R.clear('rgb(253,246,227)');                                    // main.py:3202
+      // main.py:3203-3206 paper card, WHITE with a 3px BLACK border
+      R.fillRoundRect(100, 50, W - 200, H - 200, 0, 'rgb(255,255,255)', 'rgb(0,0,0)', 3);
+      const q = this.questions[this.current_q];
+      if (!q) return;
+      // main.py:3208 header
+      R.text('BAI THI CHUYEN LOP - LOP ' + this.grade, W / 2, 100,
+        { font: 'bold 30px Quicksand, Segoe UI, sans-serif', fill: 'rgb(139,69,19)', align: 'center', baseline: 'middle' });
+      // main.py:3209 progress
+      R.text('Cau ' + (this.current_q + 1) + '/' + this.questions.length, W / 2, 160,
+        { font: 'bold 22px Quicksand, Segoe UI, sans-serif', fill: 'rgb(0,0,0)', align: 'center', baseline: 'middle' });
+      // main.py:3212-3213 question text in q_rect(150,200,W-300,120)
+      R.text(String(q.q), W / 2, 260,
+        { font: 'bold 22px Quicksand, Segoe UI, sans-serif', fill: 'rgb(0,0,0)', align: 'center', baseline: 'middle', maxWidth: W - 300 });
+      if (q.type === 'mcq') {
+        this._buildOptionRects(q);
+        // main.py:3214-3221 selected option is GREEN, others BLUE, r12 + 2px black
+        for (let i = 0; i < this.optionRects.length; i++) {
+          const r = this.optionRects[i];
+          const sel = String(q.user_ans) === String(r.value);          // main.py:3217
+          const col = sel ? GREEN_BTN : BLUE_BTN;                     // main.py:3218
+          R.fillRoundRect(r.x, r.y, r.w, r.h, 12, css(col), 'rgb(0,0,0)', 2); // :3219-3220
+          R.text(String(r.value), r.x + r.w / 2, r.y + r.h / 2,
+            { font: 'bold 22px Quicksand, Segoe UI, sans-serif', fill: 'rgb(255,255,255)', align: 'center', baseline: 'middle', maxWidth: r.w - 16 });
+        }
+      } else {
+        // main.py:3222-3229 input box + hint
+        const ir = { x: W / 2 - 200, y: 400, w: 400, h: 60 };        // main.py:3224
+        R.fillRoundRect(ir.x, ir.y, ir.w, ir.h, 0, 'rgb(255,255,255)', 'rgb(0,0,0)', 3); // :3225-3226
+        R.text(this.input_text, ir.x + 20, ir.y + 10,                 // main.py:3227-3228
+          { font: 'bold 30px Quicksand, Segoe UI, sans-serif', fill: 'rgb(0,0,0)', align: 'left', baseline: 'top', maxWidth: ir.w - 30 });
+        R.text('Nhap dap an cua ban vao o tren', W / 2, 480,           // main.py:3229
+          { font: 'bold 16px Quicksand, Segoe UI, sans-serif', fill: 'rgb(100,100,100)', align: 'center', baseline: 'middle' });
+      }
+      drawBtn(R, this.backBtn.x, this.backBtn.y, this.backBtn.w, this.backBtn.h, this.backBtn.label, this.backBtn.bg, { fontSize: 18 });
+      drawBtn(R, this.submitBtn.x, this.submitBtn.y, this.submitBtn.w, this.submitBtn.h, this.submitBtn.label, this.submitBtn.bg, { fontSize: 18 });
+      // main.py:3232-3233 next only when not on the last question, prev only when > 0
+      if (this.current_q < this.questions.length - 1) {
+        drawBtn(R, this.nextBtn.x, this.nextBtn.y, this.nextBtn.w, this.nextBtn.h, this.nextBtn.label, this.nextBtn.bg, { fontSize: 18 });
+      }
+      if (this.current_q > 0) {
+        drawBtn(R, this.prevBtn.x, this.prevBtn.y, this.prevBtn.w, this.prevBtn.h, this.prevBtn.label, this.prevBtn.bg, { fontSize: 18 });
+      }
+    }
+
+    // main.py:3157 manager.change(MenuState())
+    _toMenu() { global.Game.states.change('menu', null, 'fade'); }
+    // main.py:3161 manager.change(ExamResultState(self.score))
+    _toResult() { global.Game.states.change('exam_result', { score: this.score }, 'fade'); }
+  }
+﻿  // ===================================================================
+  // ExamResultState -- faithful port of Desktop main.py:3234-3271
+  // ===================================================================
+  class ExamResultState extends BaseState {
+    // main.py:3235-3239 __init__(score)
+    constructor(score) {
+      super('exam_result');
+      this.score = (typeof score === 'number' && isFinite(score)) ? score : 0; // main.py:3236
+      this.backBtn = { x: W / 2 - 150, y: H - 100, w: 300, h: 60, label: 'VE MENU', bg: GREEN_BTN }; // :3237
+      this._processed_result = false;                                      // main.py:3238
+      this.exam_gold = 0;                                                  // main.py:3239
+      this.userName = '';
+    }
+
+    // main.py:3240-3250 enter()
+    enter(params) {
+      // The Web StateManager reuses one instance, so the score arrives via
+      // change('exam_result', {score}); Desktop gets it as a ctor arg (main.py:3161).
+      if (params && typeof params.score === 'number' && isFinite(params.score)) {
+        this.score = params.score;
+      }
+      const auth = global.Game && global.Game.auth;
+      const user = auth && auth.currentUser ? auth.currentUser : '';
+      if (user) this.userName = String(user);
+      const pl = (global.Game && typeof getPlayer === 'function') ? getPlayer() : null;
+      if (pl && pl.username && !this.userName) this.userName = String(pl.username);
+      // main.py:3241-3243 the processed guard makes the reward fire EXACTLY once
+      if (this._processed_result) return;
+      this._processed_result = true;
+      // main.py:3244 reward_gold_for_result("mock_exam", score*10, score*10)
+      this.exam_gold = global.examGoldForScore(this.score);
+      if (pl && typeof pl.addGold === 'function') pl.addGold(this.exam_gold, auth);
+      L.info('[ExamResult] processed. score', this.score, 'gold', this.exam_gold);
+      // main.py:3245-3250 pass (score >= 6): grade up, reset lessons and xp, save
+      if (this.score >= 6) {
+        if (auth && typeof auth.data === 'function' && typeof auth.save === 'function') {
+          const d = auth.data();
+          d.grade = Math.min(3, (d.grade || 1) + 1);        // main.py:3247
+          d.completed_lessons = [];                          // main.py:3248
+          d.xp = 0;                                          // main.py:3249
+          auth.save();                                       // main.py:3250
+        }
+        if (pl) {
+          pl.grade = Math.min(3, (pl.grade || 1) + 1);
+          pl.exp = 0;
+        }
+        L.info('[ExamResult] PASS -> grade', (pl && pl.grade));
+      } else {
+        L.info('[ExamResult] FAIL -> score', this.score);
+      }
+    }
+
+    // main.py has no update() override for ExamResultState
+    update(dt) {}
+
+    // main.py:3251-3269 draw(s)
+    draw(ctx, WW, HH) {
+      const R = global.Game.renderer;
+      R.clear('rgb(44,62,80)');                                        // main.py:3252
+      // main.py:3253-3255 certificate, cream fill with a 15px gold border
+      const cert = { x: W / 2 - 500, y: 100, w: 1000, h: 500 };         // main.py:3253
+      R.fillRoundRect(cert.x, cert.y, cert.w, cert.h, 0, 'rgb(253,245,230)', 'rgb(212,175,55)', 15);
+      if (this.score >= 6) {
+        // main.py:3257-3263 the pass certificate
+        R.text('GIAY CHUNG NHAN', W / 2, 180,                           // main.py:3257
+          { font: 'bold 34px Quicksand, Segoe UI, sans-serif', fill: 'rgb(139,69,19)', align: 'center', baseline: 'middle' });
+        R.text('Chuc mung: ' + this.userName, W / 2, 280,              // main.py:3258
+          { font: 'bold 22px Quicksand, Segoe UI, sans-serif', fill: 'rgb(0,0,0)', align: 'center', baseline: 'middle' });
+        R.text('Hoan thanh xuat sac chuong trinh! Diem: ' + this.score + '/10', W / 2, 380, // :3259
+          { font: 'bold 16px Quicksand, Segoe UI, sans-serif', fill: 'rgb(0,0,0)', align: 'center', baseline: 'middle' });
+        // main.py:3262-3263 the red approval seal
+        const gcx = 850, gcy = 500, gr = 60;                            // main.py:3262
+        const gc = R.ctx;
+        if (gc && typeof gc.beginPath === 'function') {
+          gc.save();
+          gc.strokeStyle = 'rgb(180,0,0)'; gc.lineWidth = 4;             // main.py:3262
+          gc.beginPath(); gc.arc(gcx, gcy, gr, 0, Math.PI * 2); gc.stroke();
+          gc.restore();
+        }
+        R.text('DA DUYET', 800, 485,                                     // main.py:3263
+          { font: 'bold 16px Quicksand, Segoe UI, sans-serif', fill: 'rgb(180,0,0)', align: 'left', baseline: 'middle' });
+      } else {
+        // main.py:3264-3266 the fail message
+        R.text('Ban can co gang hon! Diem cua ban: ' + this.score + '/10', W / 2, 300, // :3265
+          { font: 'bold 22px Quicksand, Segoe UI, sans-serif', fill: 'rgb(180,0,0)', align: 'center', baseline: 'middle' });
+      }
+      // main.py:3267-3268 the gold reward line
+      R.text('Thuong: +' + this.exam_gold + ' vang', W / 2, 560,       // main.py:3267
+        { font: 'bold 26px Quicksand, Segoe UI, sans-serif', fill: 'rgb(170,130,30)', align: 'center', baseline: 'middle' });
+      drawBtn(R, this.backBtn.x, this.backBtn.y, this.backBtn.w, this.backBtn.h, this.backBtn.label, this.backBtn.bg, { fontSize: 20 });
+    }
+
+    // main.py:3270-3271 handle_event(e) -- back button only
+    handleInput(input, dt) {
+      const click = input.consumeClick ? input.consumeClick() : null;
+      if (!click) return;
+      if (hit(click, this.backBtn.x, this.backBtn.y, this.backBtn.w, this.backBtn.h)) {
+        global.Game.states.change('menu', null, 'fade');                 // main.py:3271
+      }
+    }
+  }
+
+
+global.FinalExamState = FinalExamState;
+global.ExamResultState = ExamResultState;
+// M30.2 helper exports (game_init.py:2919 generate_hard_exam, and
+// game_init.py:380 reward_gold_for_result as called by main.py:3244)
+global.generateHardExam = generateHardExam;
+global.examGoldForScore = examGoldForScore;
+
   global.LoginState = LoginState;
   global.RegisterState = RegisterState;
   global.MenuState = MenuState;
@@ -4194,6 +4764,10 @@ global.ExamTransitionState = ExamTransitionState;
       IdleGifState: IdleGifState,
     TimeAttackState: TimeAttackState,
     ExamTransitionState: ExamTransitionState,
+    FinalExamState: FinalExamState,
+    ExamResultState: ExamResultState,
+    generateHardExam: generateHardExam,
+    examGoldForScore: examGoldForScore,
     LoginState: LoginState,
       RegisterState: RegisterState,
       MenuState: MenuState,
