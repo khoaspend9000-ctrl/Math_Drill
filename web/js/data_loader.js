@@ -109,6 +109,16 @@
     return (lessonIndex + 1) <= maxUnlocked;
   }
 
+  /* M30.1: synchronous lesson count per grade. Desktop main.py:687 needs
+     len(all_lessons) for the exam gate, but getLessonsForGrade() is async here.
+     These are the shipped curriculum counts from web/data/math_lessons.json. */
+  var GRADE_LESSON_COUNTS = { 1: 40, 2: 73, 3: 81, 4: 73, 5: 75 };
+  function lessonCountForGrade(grade) {
+    var g = parseInt(grade, 10);
+    if (!isFinite(g) || !GRADE_LESSON_COUNTS[g]) return 0;
+    return GRADE_LESSON_COUNTS[g];
+  }
+
   function getUnlockedCount(level) {
     return Math.floor((level - 1) / 6) + 1;
   }
@@ -156,6 +166,7 @@
     getLessonsForGrade: getLessonsForGrade,
     isLessonUnlocked: isLessonUnlocked,
     getUnlockedCount: getUnlockedCount,
+    lessonCountForGrade: lessonCountForGrade,
     requiredLevelForLesson: requiredLevelForLesson,
     nextUnlockProgress: nextUnlockProgress,
     expToReachLevel: expToReachLevel,

@@ -87,26 +87,26 @@ check('D1-T02 clicking a locked card explains itself in plain language', functio
   // M29.2 ships TimeAttackState (Desktop main.py:1745), so the exam card is now
   // the ONLY locked card. Time Attack was unlocked because Desktop main.py:674-676
   // opens it with no gate at all -- keeping it locked was a parity defect.
-  ['exam'].forEach(function (id) {
-    const card = st.cards.filter(function (c) { return c.id === id; })[0];
-    assert.ok(card && card.locked, id + ' must exist and stay locked');
-    st.examMsg = null;
-    st.handleInput({ consumeClick: function () { return { x: card.x + 5, y: card.y + 5 }; } });
-    assert.ok(st.examMsg, id + ': player must be told something');
-    assert.ok(!/M\d/.test(st.examMsg), id + ': message leaks a milestone: ' + st.examMsg);
-    assert.ok(st.examMsg.indexOf(card.label) >= 0,
-      id + ': message should name the card: ' + st.examMsg);
-    assert.ok(st.examMsgTimer > 0, id + ': the notice must stay visible');
-    assert.strictEqual(g.states.current, st, id + ': must not navigate away');
-  });
+  // M30.1: the exam gate is Desktop main.py:690-698 -- unlock only when every
+  // lesson for the grade is unlocked, otherwise report HOW MANY remain for 3.0s.
+  const card = st.cards.filter(function (c) { return c.id === 'exam'; })[0];
+  assert.ok(card, 'exam card must exist');
+  st.examMsg = null; st.examMsgTimer = 0;
+  st.handleInput({ consumeClick: function () { return { x: card.x + 5, y: card.y + 5 }; } });
+  assert.ok(st.examMsg, 'player must be told how many lessons remain');
+  assert.ok(!/M\d/.test(st.examMsg), 'message leaks a milestone: ' + st.examMsg);
+  assert.ok(/\d/.test(st.examMsg), 'message must count the remaining lessons: ' + st.examMsg);
+  assert.ok(st.examMsgTimer > 0, 'the notice must stay visible');
+  assert.strictEqual(g.states.current, st, 'must not navigate away while locked');
 });
 
 check('D1-T03 the undelivered mode stays locked and Time Attack is now unlocked', function () {
   const st = new statesReal.MenuState();
   const locked = st.cards.filter(function (c) { return !!c.locked; })
     .map(function (c) { return c.id; }).sort();
-  assert.deepStrictEqual(locked, ['exam'],
-    'only Thi Chuyen Lop is still undelivered and must stay locked, got ' + JSON.stringify(locked));
+  // M30.1: no card carries a static lock any more -- both gates are formulas.
+  assert.deepStrictEqual(locked, [],
+    'no card may carry a fabricated milestone lock, got ' + JSON.stringify(locked));
   // STRENGTHENED: the Time Attack card must now exist, be UNLOCKED, and route.
   const timeCard = st.cards.filter(function (c) { return c.id === 'time'; })[0];
   assert.ok(timeCard, 'Time Attack card must still be visible');

@@ -236,14 +236,17 @@ check('M4 flow: menu card "BĂ i Há»c" -> lesson_select; card khĂ³a -> th
   global.Game.states = manager;
   manager.change('menu');
   const input = new FakeInput();
-  // The exam card is still locked (M10) -> shows a message, stays on menu.
-  // M29.2 removed the Time Attack lock: Desktop main.py:674-676 opens it with no
-  // gate at all, so locking it was a source-proven parity defect.
+  // M30.1: the exam gate is Desktop main.py:690-698 -- a FORMULA, not a static
+  // lock. At a low level max_unlocked_lesson is far below the lesson count, so the
+  // card reports how many lessons remain and stays on the menu.
   const examCard = manager.current.cards.filter(function (c) { return c.id === 'exam'; })[0];
-  assert.ok(examCard && examCard.locked, 'exam card should still be locked');
+  assert.ok(examCard, 'exam card must exist');
+  assert.ok(!examCard.locked, 'exam must not carry a static lock (Desktop uses a formula)');
   input.click(examCard.x + examCard.w / 2, examCard.y + examCard.h / 2);
   manager.current.handleInput(input, 0.016);
-  assert.strictEqual(manager.currentName, 'menu');
+  assert.strictEqual(manager.currentName, 'menu', 'locked exam must not navigate');
+  assert.ok(manager.current.examMsg && manager.current.examMsgTimer > 0,
+    'locked exam must explain how many lessons remain');
   assert.ok(manager.current.examMsgTimer > 0, 'hiá»‡n thĂ´ng bĂ¡o khĂ³a');
   // card BĂ i Há»c (680,155,240,90) â†’ lesson_select
   input.click(680 + 120, 155 + 45);

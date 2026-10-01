@@ -147,6 +147,10 @@
       game.states.register('lesson_select', new LessonSelectState());
       game.states.register('theory', new TheoryState());
       game.states.register('lesson', new LessonState());
+  // M30.1 Desktop parity: ExamTransitionState (main.py:3091), entry main.py:693.
+  if (typeof ExamTransitionState === 'function') {
+    game.states.register('exam_transition', new ExamTransitionState());
+  }
   // M29.2 Desktop parity: TimeAttackState (main.py:1745), entry main.py:674-676.
   if (typeof TimeAttackState === 'function') {
     game.states.register('time_attack', new TimeAttackState());

@@ -1332,6 +1332,128 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
     }
   }
 
+  /* ===================================================================
+     M30.1 — ExamTransitionState
+     Faithful port of Desktop main.py:3091-3138 (class ExamTransitionState).
+     Entry + lock: main.py:682-698 (Menu card 3).
+     Hands off to FinalExamState() at main.py:3118 with NO arguments.
+     GameState.handle_event is a no-op (game_init.py:2430), so Desktop's
+     ExamTransitionState accepts NO input at all — it is fully automatic.
+     =================================================================== */
+  class ExamTransitionState extends BaseState {
+    constructor() {
+      super('exam_transition');
+      this._init();
+    }
+
+    /* M29.2 lesson: StateManager reuses ONE instance, so every Desktop __init__
+       value (main.py:3092-3101) must be re-applied in enter() or a second run
+       would inherit the first run's timer and animation position. */
+    _init() {
+      this.timer = 0;                     // main.py:3093
+      this.duration = 2.5;                 // main.py:3094
+      this.bookW = 1200;                   // main.py:3095
+      this.bookH = 700;                    // main.py:3096
+      this.bookX = Math.floor(W / 2);      // main.py:3097 WIDTH // 2 = 650
+      this.bookY = Math.floor(H / 2);      // main.py:3098 HEIGHT // 2 = 400
+      this.paperY = H + 100;               // main.py:3099
+      this.paperAlpha = 0;                 // main.py:3100
+      this.paperRotation = 15.0;           // main.py:3101
+      this.completed = false;              // guards against a second handoff
+    }
+
+    // Desktop main.py:2429 enter() is `pass`; all setup is in __init__.
+    enter() { this._init(); }
+
+    // Desktop GameState.handle_event is a no-op (game_init.py:2430), and
+    // ExamTransitionState does not override it -> NO input is accepted.
+    handleInput() { /* intentionally inert: Desktop accepts none */ }
+
+    // main.py:3102-3118 update(dt)
+    update(dt) {
+      if (this.completed) return;
+      this.timer += dt;                                            // :3103
+      const prog = Math.min(this.timer / this.duration, 1.0);      // :3104
+      if (prog <= 0.4) {                                           // :3105
+        const p1 = prog / 0.4;
+        this.bookW = Math.trunc(Math.max(40, 1200 * (1 - p1)));    // :3107
+      } else if (prog <= 0.65) {                                   // :3108
+        const p2 = (prog - 0.4) / 0.25;
+        this.bookX = Math.trunc(Math.floor(W / 2) - (W * p2));     // :3110
+      }
+      if (prog > 0.6) {                                            // :3111
+        const p3 = (prog - 0.6) / 0.4;
+        const targetY = Math.floor(H / 2);                         // :3113
+        this.paperY = Math.trunc(H - (H - targetY) * p3);          // :3114
+        this.paperAlpha = Math.trunc(255 * p3);                    // :3115
+        this.paperRotation = 15.0 * (1 - p3);                      // :3116
+      }
+      if (prog >= 1.0) {                                           // :3117
+        // main.py:3118 manager.change(FinalExamState()) - no arguments.
+        // FinalExamState is not ported yet (M30.2); the guard keeps the
+        // automatic handoff from throwing on an unregistered state instead of
+        // silently pretending the exam ran.
+        this.completed = true;
+        // StateManager stores registered states on .states (state_manager.js:30)
+        // and there is no has() helper, so check the registry directly.
+        const SM = global.Game.states;
+        if (SM && SM.states && SM.states.final_exam) {
+          SM.change('final_exam', null, null);
+        } else {
+          L.warn('[ExamTransition] FinalExamState not registered yet (M30.2)');
+        }
+      }
+    }
+
+    // main.py:3119-3137 draw(s)
+    draw(ctx, W2, H2) {
+      const R = global.Game.renderer;
+      R.clear('rgb(165,214,167)');                                 // :3120
+      // :3121-3126 the book shrinks then slides off to the left
+      if (this.bookX > -300) {
+        const bw = this.bookW, bh = this.bookH;
+        const bx = this.bookX - Math.floor(bw / 2);
+        const by = this.bookY - Math.floor(bh / 2);
+        R.fillRoundRect(bx, by, bw, bh, 10, 'rgb(101,67,33)', null, 0);   // :3124
+        // :3125-3126 spine: width max(15, book_w//10), colour (60,40,20)
+        const spineW = Math.max(15, Math.floor(this.bookW / 10));
+        R.fillRoundRect(this.bookX - Math.floor(spineW / 2), by,
+          spineW, bh, 5, 'rgb(60,40,20)', null, 0);
+      }
+      // :3127-3137 the exam paper rises, un-rotates and fades in
+      if (this.paperAlpha > 0) {
+        const pw = 850, ph = 700;                                   // :3128
+        const px = Math.floor(W2 / 2 - pw / 2);
+        const py = Math.floor(this.paperY - ph / 2);
+        const a = this.paperAlpha / 255;
+        R.fillRoundRectAlpha(px, py, pw, ph, 5, '#ffffff', a);      // :3130
+        // :3131 2px border, same alpha, colour (0,0,0)
+        const gc = R.ctx;
+        if (gc && typeof gc.save === 'function') {
+          gc.save(); gc.globalAlpha = a;
+          R.fillRoundRect(px, py, pw, ph, 5, null, 'rgb(0,0,0)', 2);
+          gc.restore();
+        }
+        // :3132-3134 fourteen ruled lines from y=100+i*40, colour (220,230,255)
+        const lc = R.ctx;
+        if (lc && typeof lc.save === 'function') {
+          lc.save();
+          lc.globalAlpha = (this.paperAlpha / 2) / 255;
+          lc.strokeStyle = 'rgb(220,230,255)';
+          lc.lineWidth = 1;
+          for (let i = 1; i < 15; i++) {
+            const lineY = 100 + i * 40;
+            lc.beginPath();
+            lc.moveTo(px + 50, py + lineY);
+            lc.lineTo(px + pw - 50, py + lineY);
+            lc.stroke();
+          }
+          lc.restore();
+        }
+      }
+    }
+  }
+
   class MenuState extends BaseState {
     constructor() {
       super('menu');
@@ -1351,7 +1473,7 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
         { id: 'lesson', x: x, y: card_y1, w: card_w, h: card_h, icon: '🎓', label: 'Bài Học', sub: 'Luyện tập theo chương', bg: BLUE_BTN },
         { id: 'time', x: x + card_w + gap, y: card_y1, w: card_w, h: card_h, icon: '⏱️', label: 'Time Attack', sub: 'Chơi nhanh ghi điểm', bg: ORANGE_BTN },
         { id: 'daily', x: x, y: card_y2, w: card_w, h: card_h, icon: '🔥', label: 'Thử Thách', sub: 'Bài tập hằng ngày', bg: YELLOW_BTN },
-        { id: 'exam', x: x + card_w + gap, y: card_y2, w: card_w, h: card_h, icon: '📝', label: 'Thi Chuyển Lớp', sub: 'Kiểm tra tổng hợp', bg: [180, 130, 200], locked: 'M10' },
+        { id: 'exam', x: x + card_w + gap, y: card_y2, w: card_w, h: card_h, icon: '📝', label: 'Thi Chuyển Lớp', sub: 'Kiểm tra tổng hợp', bg: [180, 130, 200], },
         { id: 'ach', x: x, y: card_y3, w: 140, h: 65, icon: '🏆', label: 'Thành Tích', bg: GREEN_BTN },
         { id: 'profile', x: x + 155, y: card_y3, w: 140, h: 65, icon: '👤', label: 'Hồ Sơ', bg: PURPLE_BTN },
         { id: 'settings', x: x + 310, y: card_y3, w: 140, h: 65, icon: '⚙️', label: 'Cài Đặt', bg: SHADOW },
@@ -1415,6 +1537,33 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
           };
           if (this._rbNav && typeof this._rbNav.next === 'function') this._rbNav.next(goLesson);
           else goLesson();
+        } else if (c.id === 'exam') {
+          /* M30.1 Desktop parity: main.py:682-698. The exam unlocks when EVERY
+             lesson for the player's grade is unlocked -- NOT at a milestone:
+               max_unlocked_lesson = (user_level - 1) // 6 + 1
+               if max_unlocked_lesson >= len(all_lessons): start the exam
+               else: "Can mo khoa them {remaining} bai hoc" for 3.0s (main.py:696-698) */
+          var exGrade = getPlayer().grade || 1;
+          // Desktop main.py:687 len(all_lessons); the Web loader is async, so
+          // use the synchronous curriculum count (M30.1 DataLoader).
+          var exTotal = (global.DataLoader && global.DataLoader.lessonCountForGrade)
+            ? global.DataLoader.lessonCountForGrade(exGrade) : 0;
+          var exLevel = getPlayer().level || 1;
+          var exMaxUnlocked = Math.floor((exLevel - 1) / 6) + 1;   // main.py:690
+          if (exTotal > 0 && exMaxUnlocked >= exTotal) {
+            var goExam = function () {
+              global.Game.states.change('exam_transition', null, null);
+            };
+            // Desktop main.py:693 uses transition_type="PAGE" (the book flip).
+            if (this._rbNav && typeof this._rbNav.next === 'function') this._rbNav.next(goExam);
+            else goExam();
+          } else {
+            var exRemaining = Math.max(0, exTotal - exMaxUnlocked);        // main.py:696
+            this.examMsg = 'Can mo khoa them ' + exRemaining +
+              ' bai hoc de thi chuyen lop!';                            // main.py:697
+            this.examMsgTimer = 3.0;                                       // main.py:698
+            L.info('[Menu] exam locked:', exRemaining, 'lessons remaining');
+          }
         } else if (c.id === 'time') {
           /* M29.2 Desktop parity: main.py:674-676 opens TimeAttackState directly,
              with the same PAGE (book-flip) transition main.py:668-670 gives card 0.
@@ -4018,6 +4167,7 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
   /* M29 parity export */
   global.IdleGifState = IdleGifState;
 global.TimeAttackState = TimeAttackState;
+global.ExamTransitionState = ExamTransitionState;
   global.LoginState = LoginState;
   global.RegisterState = RegisterState;
   global.MenuState = MenuState;
@@ -4043,6 +4193,7 @@ global.TimeAttackState = TimeAttackState;
       LoadingState: LoadingState,
       IdleGifState: IdleGifState,
     TimeAttackState: TimeAttackState,
+    ExamTransitionState: ExamTransitionState,
     LoginState: LoginState,
       RegisterState: RegisterState,
       MenuState: MenuState,

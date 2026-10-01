@@ -104,9 +104,10 @@ const click = (x, y) => ({ consumeClick: () => ({ x: x, y: y }), consumeWheel: (
 /* T01 — registry completeness: main.js registers exactly the shipped states */
 /* M29: 24 -> 25 after IdleGifState (Desktop main.py:252) was ported. The count
    moves WITH the product; the per-state registry checks below are unchanged. */
-check('FQA-T01 main.js registers all 26 shipped states', function () {
+// M30.1 adds exam_transition (Desktop main.py:3091). Count tracks the registry.
+check('FQA-T01 main.js registers all 27 shipped states', function () {
   // M29.2 adds TimeAttackState (Desktop main.py:1745). Count tracks the registry.
-  assert.strictEqual(REGISTERED.length, 26, 'registered=' + REGISTERED.length + ' (incl Register/Settings/Password/Review/Practice/IdleGif/TimeAttack)');
+  assert.strictEqual(REGISTERED.length, 27, 'registered=' + REGISTERED.length + ' (incl Register/Settings/Password/Review/Practice/IdleGif/TimeAttack/ExamTransition)');
   for (const k of Object.keys(REGISTRY)) {
     assert.ok(REGISTERED.indexOf(k) >= 0, 'missing registration: ' + k);
   }
@@ -211,12 +212,13 @@ check('FQA-T09 locked menu cards never navigate and report a lock message', func
   m.register('menu', new st.MenuState());
   m.change('menu', null, null);
   const menu = m.current;
+  // M30.1: Desktop gates BOTH remaining modes by FORMULA, never by a static
+  // flag. main.py:674-676 (Time Attack) has no gate at all; main.py:684-698
+  // (Exam) unlocks when every lesson for the grade is unlocked. So no menu card
+  // may carry a `locked` property any more.
   const locked = menu.cards.filter(c => c.locked);
-  // M29.2: Desktop main.py:674-676 opens Time Attack with no gate, so exactly the
-  // exam card remains locked. One locked card is the correct count now.
-  assert.ok(locked.length >= 1, 'expected at least the locked exam card');
-  assert.strictEqual(locked.map(c => c.id).join(','), 'exam',
-    'only the exam card should still be locked; got: ' + locked.map(c => c.id).join(','));
+  assert.strictEqual(locked.length, 0,
+    'no card may carry a static lock (Desktop gates are formulas); got: ' + locked.map(c => c.id).join(','));
   for (const c of locked) {
     menu.handleInput(click(c.x + c.w / 2, c.y + c.h / 2), 0.016);
     assert.strictEqual(m.currentName, 'menu', 'locked card "' + c.id + '" navigated!');
