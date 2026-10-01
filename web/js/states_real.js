@@ -610,7 +610,7 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
       if (_regBg && !_regBg.placeholder) {
         R.image(_regBg, 0, 0, W2, H2);
       } else {
-        R.clear('#1e2840');   // Desktop fallback main.py:397
+        R.clear('rgb(30,40,60)');   // Desktop main.py:397 fallback fill
       }
       drawClover(R, this.cloverEffect);
       const ch = global.Game.assets && global.Game.assets.get('main_character');
@@ -633,9 +633,11 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
       drawBtn(R, this.backBtn.x, this.backBtn.y, this.backBtn.w, this.backBtn.h,
         'QUAY LẠI', RED_BTN);
       if (this.msgTimer > 0 && this.msg) {
-        R.text(this.msg, 650, 690, {
+        // Desktop main.py:412-413 GREEN_BTN on success else RED_BTN, centred at
+        // WIDTH//2+50 = 700, y = 680.
+        R.text(this.msg, 700, 680, {
           font: '20px Quicksand, sans-serif',
-          fill: this.msgOk ? '#4ade80' : '#ff8a8a',
+          fill: this.msgOk ? 'rgb(76,175,80)' : 'rgb(244,67,54)',
           align: 'center', baseline: 'middle'
         });
       }
@@ -2986,7 +2988,7 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
   class ShopState extends BaseState {
     constructor() {
       super('shop');
-      this.backBtn = { x: 40, y: 700, w: 180, h: 55 };
+      this.backBtn = { x: 810, y: 600, w: 300, h: 60 };  // Desktop main.py:2276
       this.filter = 'all';
       this.statusMsg = '';
       this.statusTimer = 0;
@@ -3628,7 +3630,7 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
   class AchievementState extends BaseState {
     constructor() {
       super('achievement');
-      this.backBtn = { x: 40, y: 700, w: 180, h: 55 };
+      this.backBtn = { x: 810, y: 600, w: 300, h: 60 };  // Desktop main.py:1930
       this.dataMissing = true;
       this.rows = [];
     }
@@ -4049,7 +4051,7 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
   class SkillTreeState extends BaseState {
     constructor() {
       super('skill_tree');
-      this.backBtn = { x: 40, y: 700, w: 180, h: 55 };
+      this.backBtn = { x: 810, y: 600, w: 300, h: 60 };  // Desktop main.py:2480
       this.statusMsg = '';
       this.statusTimer = 0;
       this.skillButtons = [];
@@ -4178,7 +4180,7 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
   class BagState extends BaseState {
     constructor() {
       super('bag');
-      this.backBtn = { x: 40, y: 700, w: 180, h: 55 };
+      this.backBtn = { x: 30, y: H - 65, w: 160, h: 50 };  // Desktop main.py:2691
       this.dataMissing = true;
       this.cards = [];
     }

@@ -31,6 +31,7 @@ test_suites = [
     'm31_card_shop.test.js',
     'm32_1_defeat_retry.test.js',
     'm32_2_daily_challenge.test.js',
+    'm32_3_parity_rediff.test.js',
 ]
 
 def first(pattern, text, flags=0):
