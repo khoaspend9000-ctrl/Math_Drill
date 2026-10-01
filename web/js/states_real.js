@@ -62,6 +62,9 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
     try { return parseInt(grade || 1, 10) <= 2; }
     catch (e) { return true; }
   }
+  // main.py:1029 the exact Desktop discriminator string.
+  const DAILY_CHALLENGE_TITLE = 'Thử Thách';
+
   function css(c) {
     return Array.isArray(c) ? 'rgb(' + c[0] + ',' + c[1] + ',' + c[2] + ')' : c;
   }
@@ -2834,7 +2837,20 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
       const click = input.consumeClick ? input.consumeClick() : null;
       if (!click || !this.showUi) return;
       if (hit(click, this.retryBtn.x, this.retryBtn.y, this.retryBtn.w, this.retryBtn.h)) {
-        // Python main.py:1028-1030: retry → LessonState(lesson_title)
+        /* M32.1 Desktop parity main.py:1028-1030:
+             if self.btn_retry.clicked(e.pos):
+                 if self.lesson_title == "ThừỮD Thách": manager.change(DailyState())
+                 else: manager.change(LessonState(self.lesson_title))
+           The Daily branch is UNREACHABLE in live play today: the Web
+           DailyState is a daily-reward CLAIM screen, not the Desktop
+           10-question daily quiz (main.py:2002-2130), so no Web flow ever
+           produces a Defeat whose lesson_title is "Thử Thách".
+           Kept so the code matches Desktop exactly and works as soon as the
+           daily challenge is ported. */
+        if (this.lessonTitle === DAILY_CHALLENGE_TITLE) {
+          global.Game.states.change('daily', null, 'fade');
+          return;
+        }
         global.Game.states.change('lesson', {
           grade: getPlayer().grade,
           title: this.lessonTitle || 'Bài 1',
