@@ -4177,51 +4177,280 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
   }
 
   /* M10-B STATE: BAG (main.py:2670-2947 BagState — gacha inventory viewer) */
+﻿  // M32.4: BagState -- full port of Desktop main.py:2670-2942.
+  // Desktop docstring (:2671-2677): left panel (item grid) | right panel
+  // (detail + active buffs). One entry = one card type, quantity bottom-right.
   class BagState extends BaseState {
-    constructor() {
-      super('bag');
-      this.backBtn = { x: 30, y: H - 65, w: 160, h: 50 };  // Desktop main.py:2691
+    // main.py:2679-2688
+    static RARITY_COLORS = { '5star': [255, 215, 0], '4star': [200, 130, 255], '3star': [130, 190, 255] };
+    static RARITY_BG     = { '5star': [50, 40, 15],   '4star': [40, 25, 60],   '3star': [20, 35, 55] };
+    static STAR_LABEL    = { '5star': '*****', '4star': '****', '3star': '***' };
+
+    constructor() { super('bag'); this._init(); }
+
+    // main.py:2690-2705 __init__
+    _init() {
+      this.backBtn = { x: 30, y: H - 65, w: 160, h: 50, label: 'Quay lai', bg: RED_BTN }; // :2691
+      this.useBtn  = { x: 0, y: 0, w: 200, h: 52, label: 'Su Dung', bg: [80, 180, 80] };   // :2692
+      this.selected   = null;   // :2693
+      this.msg        = '';     // :2694
+      this.msgTimer   = 0;      // :2695
+      this.msgOk      = true;   // :2696
+      this.animTimer  = 0;      // :2697
+      this.scrollY    = 0;      // :2698
+      this.itemRects  = [];     // :2699
       this.dataMissing = true;
-      this.cards = [];
+      // main.py:2701-2705 _all_cards from the three pools
+      this._allCards = {};
+      const all = (typeof cardShopAllCards === 'function') ? cardShopAllCards() : [];
+      for (let i = 0; i < all.length; i++) this._allCards[all[i].title] = all[i];
+      this.fx = this._fx();
     }
-    enter(params) {
-      this.cards = [];
-      const d = m9AccountData();
-      if (!d) { this.dataMissing = true; return; }
-      m9EnsureDst(d);
-      this.inventory = d.inventory || [];
-      this.bag = d.bag || {};
-      this.dataMissing = false;
+
+    /* Desktop item_fx is a module-level singleton built over account_system
+       (game_init.py ItemEffectSystem). In the Web nothing ever constructed
+       global.Game.itemFx, so the bag always rendered empty and the use-item
+       mechanic was unreachable. Build the same singleton lazily, reusing the
+       existing module and the live auth object. */
+    _fx() {
+      const fx = global.Game && global.Game.itemFx;
+      if (fx) return fx;
+      const IES = global.ItemEffectSystem;
+      if (IES) {
+        const auth = (typeof m9GetAuth === 'function') ? m9GetAuth()
+          : (global.Game && global.Game.auth);
+        const acc = (typeof m9AccountData === 'function') ? m9AccountData() : null;
+        if (auth && acc) {
+          if (typeof m9EnsureDst === 'function') m9EnsureDst(acc);
+          try {
+            const inst = new IES({ accountSystem: auth, data: acc, player: m9Player() });
+            global.Game.itemFx = inst;
+            return inst;
+          } catch (e) { L.warn('[Bag] ItemEffectSystem init failed', e && e.message); }
+        }
+      }
+      return {
+        getBag: function () { return {}; },
+        activate: function () { return [false, 'Item effects unavailable']; },
+        getActiveSummary: function () { return []; },
+        tickTimers: function () {}
+      };
     }
-    exit() { this.cards = []; }
+
+    enter() { this._init(); }
+    exit() { this.itemRects = []; }
+
+    // main.py:2707-2717 _get_bag_sorted(): 5* first, then 4*, then 3*,
+    // alphabetical within a rarity.
+    _getBagSorted() {
+      const bag = this.fx.getBag() || {};
+      const order = { '5star': 0, '4star': 1, '3star': 2 };            // :2710
+      const items = [];
+      const self = this;
+      Object.keys(bag).forEach(function (title) {
+        const qty = bag[title];
+        const def = self._allCards[title] || {};                        // :2713
+        items.push({ title: title, qty: qty, rarity: def.rarity || '3star', def: def });
+      });
+      items.sort(function (a, b) {                                      // :2716
+        const oa = order[a.rarity] !== undefined ? order[a.rarity] : 3;
+        const ob = order[b.rarity] !== undefined ? order[b.rarity] : 3;
+        if (oa !== ob) return oa - ob;
+        return a.title < b.title ? -1 : (a.title > b.title ? 1 : 0);
+      });
+      return items;
+    }
+
+    // main.py:2719-2741 handle_event(e)
     handleInput(input, dt) {
       const click = input.consumeClick ? input.consumeClick() : null;
+      const wheel = input.consumeWheel ? input.consumeWheel() : null;
+      // main.py:2720-2721 wheel clamps to [-600, 0]
+      if (wheel) this.scrollY = Math.max(-600, Math.min(0, this.scrollY + wheel * 30));
       if (!click) return;
       if (hit(click, this.backBtn.x, this.backBtn.y, this.backBtn.w, this.backBtn.h)) {
-        global.Game.states.change('menu', null, 'fade');
+        global.Game.states.change('menu', null, null);   // :2726 transition_type="PAGE"
+        return;
+      }
+      // main.py:2729-2732 grid click -> select
+      for (let i = 0; i < this.itemRects.length; i++) {
+        const it = this.itemRects[i];
+        if (hit(click, it.x, it.y, it.w, it.h)) { this.selected = it.title; return; } // :2731
+      }
+      // main.py:2734-2741 use button
+      if (this.selected && hit(click, this.useBtn.x, this.useBtn.y, this.useBtn.w, this.useBtn.h)) {
+        const res = this.fx.activate(this.selected);                      // :2735
+        let ok = false, msg = '';
+        if (Array.isArray(res)) { ok = res[0]; msg = res[1]; }
+        else if (res && typeof res === 'object') { ok = !!res.ok; msg = res.msg || ''; }
+        this.msg = msg; this.msgOk = ok; this.msgTimer = 3.0;            // :2736-2738
+        const bag = this.fx.getBag() || {};
+        if (!bag[this.selected]) this.selected = null;                   // :2740-2741
       }
     }
-    update(dt) {}
+
+    // main.py:2743-2747 update(dt)
+    update(dt) {
+      const d = dt || 0;
+      this.animTimer += d;                                               // :2744
+      if (this.msgTimer > 0) this.msgTimer = Math.max(0, this.msgTimer - d); // :2745-2746
+      this.fx.tickTimers(d);                                            // :2747
+    }
+
+    // main.py:2749-2791 _draw_item_card()
+    _drawItemCard(R, title, qty, rarity, def, rect, selected) {
+      const color = BagState.RARITY_COLORS[rarity] || [180, 180, 180];   // :2750
+      const bg    = BagState.RARITY_BG[rarity] || [25, 30, 50];         // :2751
+      const t = this.animTimer;
+      if (selected) {                                                    // :2755-2760 rainbow glow, rect inflated 14,14, r18
+        const c = [Math.round(127 + 127 * Math.sin(t * 3)),
+                   Math.round(127 + 127 * Math.sin(t * 3 + 2.1)),
+                   Math.round(127 + 127 * Math.sin(t * 3 + 4.2))];
+        R.fillRoundRectAlpha(rect.x - 7, rect.y - 7, rect.w + 14, rect.h + 14, 18,
+          'rgb(' + c[0] + ',' + c[1] + ',' + c[2] + ')', 160 / 255);
+      }
+      R.fillRoundRect(rect.x, rect.y, rect.w, rect.h, 14, css(bg), null, 0);      // :2762
+      R.fillRoundRect(rect.x, rect.y, rect.w, rect.h, 14, null, css(color), selected ? 3 : 1); // :2763
+      R.text(String(def.icon || '\uD83D\uDC78'), rect.x + rect.w / 2, rect.y + 10, { // :2766-2769
+        font: '44px Segoe UI Emoji, sans-serif', fill: css(color), align: 'center', baseline: 'top' });
+      R.text(String(title).slice(0, 12), rect.x + rect.w / 2, rect.y + 62, {       // :2772-2779
+        font: '12px Quicksand, sans-serif', fill: 'rgb(220,220,220)', align: 'center', baseline: 'top', maxWidth: rect.w - 8 });
+      if (qty > 1) {                                                     // :2782-2786 qty badge
+        R.fillRoundRect(rect.x + rect.w - 24, rect.y + 2, 22, 20, 6, 'rgb(220,60,60)', null, 0);
+        R.text(String(qty), rect.x + rect.w - 13, rect.y + 5, {
+          font: '12px Quicksand, sans-serif', fill: '#ffffff', align: 'center', baseline: 'top' });
+      }
+      R.text(BagState.STAR_LABEL[rarity] || '***', rect.x + rect.w / 2, rect.y + 76, { // :2789-2791
+        font: '10px Quicksand, sans-serif', fill: css(color), align: 'center', baseline: 'top' });
+    }
+
+    // main.py:2793-2942 draw(s)
     draw(ctx, W2, H2) {
       const R = global.Game.renderer;
-      R.clear('#a5d6a7');
-      R.text('🎒 TÚI ĐỒ ・ BAG', W2 / 2, 60, {
-        font: 'bold 38px Quicksand, sans-serif', fill: '#20242e', align: 'center', baseline: 'middle'
-      });
-      const inv = this.inventory || [];
-      R.text('Thẻ thu thập: ' + inv.length, W2 / 2, 120, {
-        font: '22px Quicksand, sans-serif', fill: '#20242e', align: 'center', baseline: 'middle'
-      });
-      for (let i = 0; i < inv.length && i < 42; i++) {
-        const row = Math.floor(i / 6), col = i % 6;
-        drawBtn(R, 90 + col * 200, 160 + row * 78, 180, 64, String(inv[i]).slice(0, 18), PURPLE_BTN, { fontSize: 12 });
+      R.clear('rgb(8,12,24)');                                          // :2794
+      // :2796-2799 background grid, step 60, colour (18,22,38)
+      const gc0 = R.ctx;
+      const _grid = !!(gc0 && typeof gc0.moveTo === 'function');
+      if (_grid) { gc0.save(); gc0.strokeStyle = 'rgb(18,22,38)'; gc0.lineWidth = 1; gc0.beginPath(); }
+      for (let gx = 0; gx < W; gx += 60) {
+        if (_grid) { gc0.moveTo(gx + 0.5, 0); gc0.lineTo(gx + 0.5, H); }
       }
-      if (!inv.length) {
-        R.text('(Trống — kéo thẻ gacha để thu thập thẻ)', W2 / 2, H2 / 2 + 40, {
-          font: '20px Quicksand, sans-serif', fill: '#6b4f00', align: 'center', baseline: 'middle'
-        });
+      for (let gy = 0; gy < H; gy += 60) {
+        if (_grid) { gc0.moveTo(0, gy + 0.5); gc0.lineTo(W, gy + 0.5); }
       }
-      drawBtn(R, this.backBtn.x, this.backBtn.y, this.backBtn.w, this.backBtn.h, '⬅️ QUAY LẠI', RED_BTN, { fontSize: 16 });
+      if (_grid) { gc0.stroke(); gc0.restore(); }
+      const panelW = 760;                                                // :2802
+      R.fillRoundRect(0, 0, panelW, H, 0, 'rgb(12,16,30)', null, 0);   // :2803
+      if (_grid) {                                             // :2804 divider
+        gc0.save(); gc0.strokeStyle = 'rgb(60,80,120)'; gc0.lineWidth = 2;
+        gc0.beginPath(); gc0.moveTo(panelW, 0); gc0.lineTo(panelW, H);
+        gc0.stroke(); gc0.restore();
+      }
+      R.text('\uD83C\uDF92', 30, 18, { font: '28px Segoe UI Emoji, sans-serif', fill: 'rgb(210,220,255)', align: 'left', baseline: 'top' }); // :2808
+      R.text('Tui Do', 78, 20, { font: '28px Quicksand, sans-serif', fill: 'rgb(210,220,255)', align: 'left', baseline: 'top' });          // :2810-2811
+
+      const items = this._getBagSorted();                                // :2813
+      const total = items.length;
+      this.itemRects = [];
+      if (total === 0) {                                                // :2816-2818
+        R.text('Tui Do trong - hay ghe Cua Hang Doi The!', panelW / 2, H / 2 - 20, {
+          font: '22px Quicksand, sans-serif', fill: 'rgb(120,130,160)', align: 'center', baseline: 'middle' });
+      } else {
+        // :2820-2827 grid constants
+        const cols = 6, iw = 110, ih = 95, gapX = 14, gapY = 16, startX = 28, startY = 70 + this.scrollY;
+        for (let idx = 0; idx < items.length; idx++) {                   // :2830-2841
+          const it = items[idx];
+          const col = idx % cols, row = Math.floor(idx / cols);
+          const rx = startX + col * (iw + gapX);
+          const ry = startY + row * (ih + gapY);
+          this.itemRects.push({ title: it.title, x: rx, y: ry, w: iw, h: ih });
+          if (ry + ih < 55 || ry > H - 10) continue;                   // :2837 cull
+          this._drawItemCard(R, it.title, it.qty, it.rarity, it.def,
+            { x: rx, y: ry, w: iw, h: ih }, it.title === this.selected);
+        }
+      }
+      R.text('Tong: ' + total + ' loai vat pham', 30, H - 62, {       // :2844-2845
+        font: '14px Quicksand, sans-serif', fill: 'rgb(140,150,180)', align: 'left', baseline: 'top' });
+
+      const rx0 = panelW + 10;                                          // :2848
+      const rw  = W - panelW - 10;                                      // :2849
+      const detailR = { x: rx0, y: 10, w: rw, h: 350 };                // :2852-2853
+      R.fillRoundRect(detailR.x, detailR.y, detailR.w, detailR.h, 16, 'rgb(16,20,38)', null, 0); // :2854
+      R.fillRoundRect(detailR.x, detailR.y, detailR.w, detailR.h, 16, null, 'rgb(80,100,160)', 2); // :2855
+
+      if (this.selected && this._allCards[this.selected]) {              // :2857
+        const def = this._allCards[this.selected];
+        const rarity = def.rarity || '3star';
+        const color = BagState.RARITY_COLORS[rarity] || [180, 180, 180];
+        const t = this.animTimer;
+        if (rarity === '5star') {                                       // :2866-2868 rainbow border
+          const rc = [Math.round(127 + 127 * Math.sin(t * 2)),
+                      Math.round(127 + 127 * Math.sin(t * 2 + 2.1)),
+                      Math.round(127 + 127 * Math.sin(t * 2 + 4.2))];
+          R.fillRoundRect(detailR.x, detailR.y, detailR.w, detailR.h, 16, null,
+            'rgb(' + rc[0] + ',' + rc[1] + ',' + rc[2] + ')', 3);
+        }
+        R.text(String(def.icon || '\uD83D\uDC78'), detailR.x + detailR.w / 2, detailR.y + 14, { // :2871-2872
+          font: '72px Segoe UI Emoji, sans-serif', fill: css(color), align: 'center', baseline: 'top' });
+        R.text(String(def.title || '').slice(0, 20), detailR.x + detailR.w / 2, detailR.y + 100, { // :2882
+          font: '22px Quicksand, sans-serif', fill: css(color), align: 'center', baseline: 'top' });
+        R.text(BagState.STAR_LABEL[rarity] + ' ' + ({ '5star': 'HUYEN THOAI', '4star': 'HIEM', '3star': 'THUONG' })[rarity],
+          detailR.x + detailR.w / 2, detailR.y + 130, {                // :2886
+            font: '14px Quicksand, sans-serif', fill: 'rgb(200,200,210)', align: 'center', baseline: 'top' });
+        const defs = global.ITEM_DEFS || {};
+        const d2 = defs[def.effect_id] || {};
+        R.text('Hieu ung: ' + (d2.label || '?'), detailR.x + 16, detailR.y + 158, { // :2883-2884
+          font: '15px Quicksand, sans-serif', fill: 'rgb(150,220,150)', align: 'left', baseline: 'top' });
+        R.text(String(d2.desc || def.content || '').slice(0, 60), detailR.x + 16, detailR.y + 182, { // :2887-2889
+          font: '14px Quicksand, sans-serif', fill: 'rgb(200,200,220)', align: 'left', baseline: 'top', maxWidth: rw - 32 });
+        const bag = this.fx.getBag() || {};
+        R.text('So luong trong tui: ' + (bag[this.selected] || 0), detailR.x + 16, detailR.y + 270, { // :2893-2894
+          font: '17px Quicksand, sans-serif', fill: 'rgb(220,220,120)', align: 'left', baseline: 'top' });
+        // main.py:2897 use button is repositioned every frame to the detail panel
+        this.useBtn.x = detailR.x + detailR.w / 2 - 100; this.useBtn.y = detailR.y + 298;
+        this.useBtn.w = 200; this.useBtn.h = 42;
+        drawBtn(R, this.useBtn.x, this.useBtn.y, this.useBtn.w, this.useBtn.h, this.useBtn.label, this.useBtn.bg, { fontSize: 16, radius: 8 });
+      } else {
+        R.text('Chon vat pham de xem chi tiet', detailR.x + detailR.w / 2, detailR.y + detailR.h / 2 - 10, { // :2900-2901
+          font: '17px Quicksand, sans-serif', fill: 'rgb(130,140,170)', align: 'center', baseline: 'middle' });
+      }
+
+      // main.py:2903-2931 Active Buffs panel
+      const bufY0 = detailR.y + detailR.h + 14;                        // :2904
+      const bufR = { x: rx0, y: bufY0, w: rw, h: H - bufY0 - 70 };    // :2905
+      R.fillRoundRect(bufR.x, bufR.y, bufR.w, bufR.h, 16, 'rgb(16,20,38)', null, 0);  // :2906
+      R.fillRoundRect(bufR.x, bufR.y, bufR.w, bufR.h, 16, null, 'rgb(80,160,100)', 2); // :2907
+      R.text('\uD83D\uDCA1', bufR.x + 14, bufR.y + 12, { font: '18px Segoe UI Emoji, sans-serif', fill: 'rgb(160,255,180)', align: 'left', baseline: 'top' }); // :2909
+      R.text('Buffs Dang hoat Dong', bufR.x + 40, bufR.y + 14, {      // :2911-2912
+        font: '18px Quicksand, sans-serif', fill: 'rgb(160,255,180)', align: 'left', baseline: 'top' });
+      const active = this.fx.getActiveSummary() || [];                  // :2914
+      if (!active.length) {
+        R.text('Khong co buff nao dang hoat dong.', bufR.x + bufR.w / 2, bufR.y + 50, { // :2916-2917
+          font: '14px Quicksand, sans-serif', fill: 'rgb(120,130,150)', align: 'center', baseline: 'top' });
+      } else {
+        let by = bufR.y + 44;                                          // :2919
+        for (let i = 0; i < active.length; i++) {
+          const a = active[i] || {};
+          R.text(String(a.icon || ''), bufR.x + 14, by, {              // :2923
+            font: '22px Segoe UI Emoji, sans-serif', fill: 'rgb(200,255,200)', align: 'left', baseline: 'top' });
+          R.text(String(a.label || ''), bufR.x + 44, by + 2, {        // :2926
+            font: '15px Quicksand, sans-serif', fill: 'rgb(200,255,200)', align: 'left', baseline: 'top' });
+          R.text(String(a.info || ''), bufR.x + 44, by + 20, {        // :2928
+            font: '13px Quicksand, sans-serif', fill: 'rgb(160,200,160)', align: 'left', baseline: 'top' });
+          by += 44;                                                     // :2929
+          if (by > bufR.y + bufR.h - 20) break;                        // :2930-2931
+        }
+      }
+      // main.py:2933-2937 message
+      if (this.msgTimer > 0 && this.msg) {
+        R.text(this.msg, W / 2, H - 100, {                             // :2937
+          font: '18px Quicksand, sans-serif',
+          fill: this.msgOk ? 'rgb(80,220,100)' : 'rgb(220,80,80)',
+          align: 'center', baseline: 'middle' });
+      }
+      drawBtn(R, this.backBtn.x, this.backBtn.y, this.backBtn.w, this.backBtn.h, this.backBtn.label, this.backBtn.bg, { fontSize: 16, radius: 8 }); // :2940
+      R.text('Dung vat pham truoc khi vao choi de kich hoat buff', W / 2, H - 40, { // :2941-2942
+        font: '13px Quicksand, sans-serif', fill: 'rgb(140,150,170)', align: 'center', baseline: 'middle' });
     }
   }
 

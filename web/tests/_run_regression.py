@@ -32,6 +32,7 @@ test_suites = [
     'm32_1_defeat_retry.test.js',
     'm32_2_daily_challenge.test.js',
     'm32_3_parity_rediff.test.js',
+    'm32_4_bag_achievement.test.js',
 ]
 
 def first(pattern, text, flags=0):
