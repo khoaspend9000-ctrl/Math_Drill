@@ -19,8 +19,18 @@
   var CORE_SOUNDS = ['tra_loi_dung.mp3','tra_loi_sai.mp3','sound 1.mp3','sound 2.mp3','sound 3.mp3','sound 4.mp3','sound 5.mp3','sound 6.mp3','combo.mp3','xp_gain.mp3','level_up.mp3'];
   var EXTRA_SOUNDS = ['victory.mp3','gacha5sao.mp3','defeat.mp3','purchase.mp3'];
   var FEVER_SOUND = 'fever.mp3';
-  var BGM_FILES = { menu: 'menu_bgm.mp3', gameplay: 'gameplay_bgm.mp3', victory: 'victory_bgm.mp3', defeat: 'defeat_bgm.mp3', default: 'nhac_nen.mp3' };
-  var BGM_VOLUME_DEFAULTS = { menu: 0.15, gameplay: 0.3, victory: 0.8, defeat: 0.8, default: 0.3 };
+  // audio.py:123-128 + :141-147: Desktop addresses sounds by SEMANTIC name
+  // (play_sfx("wrong") -> core_sounds["wrong"]). Web must resolve the same way.
+  var SEMANTIC_SOUNDS = {
+    correct: 'tra_loi_dung.mp3', wrong: 'tra_loi_sai.mp3', levelup: 'level_up.mp3',
+    level_up: 'level_up.mp3', victory: 'victory.mp3', defeat: 'defeat.mp3',
+    xp_gain: 'xp_gain.mp3', combo: 'combo.mp3', fever: 'fever.mp3',
+    fever_mode: 'fever.mp3', button: 'button_click.mp3', click: 'button_click.mp3',
+    purchase: 'purchase.mp3', gacha5sao: 'gacha5sao.mp3', gacha_5sao: 'gacha5sao.mp3'
+  };
+  var BGM_FILES = { menu: 'nhac_nen.mp3', lesson: 'nhac_nen.mp3', quiz: 'nhac_nen.mp3', victory: 'nhac_nen.mp3', defeat: 'nhac_nen.mp3', default: 'nhac_nen.mp3' };
+  var BGM_VOLUME_DEFAULTS = { menu: 0.5, lesson: 0.6, quiz: 0.8, victory: 0.7, defeat: 0.5, default: 0.5 };
+  var BGM_VOLUME_MULTIPLIERS = true;
 
   class SoundManager {
     constructor(basePath) {
@@ -75,7 +85,7 @@
       if (Object.prototype.hasOwnProperty.call(this.coreSounds, name)) this.coreSounds[name] = entry; else this.sounds[name] = entry;
       return entry;
     }
-    getBgmVolume(bgmName) { if (bgmName && Object.prototype.hasOwnProperty.call(BGM_VOLUME_DEFAULTS, bgmName)) return BGM_VOLUME_DEFAULTS[bgmName]; return 0.3; }
+    getBgmVolume(bgmName) { var m = (bgmName && Object.prototype.hasOwnProperty.call(BGM_VOLUME_DEFAULTS, bgmName)) ? BGM_VOLUME_DEFAULTS[bgmName] : BGM_VOLUME_DEFAULTS.default; if (this.feverModeActive) return this.bgmVolume * 0.9; return this.bgmVolume * m; }
 
     attachUnlock(target) {
       var el = target || (typeof window !== 'undefined' ? window : null);
@@ -102,6 +112,13 @@
     _canPlay() { return !!(this.mixerWorks && this.unlocked && this.soundEnabled && !this.muted); }
     playSfx(name, volumeOverride) {
       if (!this._canPlay()) return false;
+      // audio.py:220-231 -- Desktop addresses sounds by semantic name.
+      if (Object.prototype.hasOwnProperty.call(SEMANTIC_SOUNDS, name)) name = SEMANTIC_SOUNDS[name];
+      // audio.py:80-82 / :248 -- unknown sound => warn + no-op, never a phantom play.
+      // The browser has no fs.existsSync, so the declared inventory stands in.
+      if (!(this._fs && this._fs.existsSync) && !this._isKnownAsset(name)) {
+        L.warn('[Audio] Sound not found: ' + name); return false;
+      }
       var entry = this.loadSound(name);
       if (!entry) return false;
       try {
@@ -115,9 +132,17 @@
         return true;
       } catch (_) { return false; }
     }
+    _isKnownAsset(name) {
+      if (Object.prototype.hasOwnProperty.call(SEMANTIC_SOUNDS, name)) return true;
+      if (String(name).indexOf('sound ') === 0) return true;
+      if (CORE_SOUNDS.indexOf(name) >= 0) return true;
+      if (EXTRA_SOUNDS.indexOf(name) >= 0) return true;
+      return name === FEVER_SOUND;
+    }
     playSound(soundName) {
       if (!soundName) return false;
-      if (soundName === 'correct') { var pick = Math.floor(Math.random() * 6) + 1; return this.playSfx('sound ' + pick + '.mp3'); }
+      if (soundName === 'combo') return this.playComboByStreak(1);
+      if (soundName === 'correct') { if (this.timeAttackMode) return this.playSfx('sound 1.mp3'); return false; }
       if (soundName === 'wrong') return this.playSfx('tra_loi_sai.mp3');
       if (soundName === 'click')    return this.playSfx('sound 2.mp3', 0.5);      // button multiplier
       if (soundName === 'victory')  return this.playSfx('victory.mp3');
@@ -135,20 +160,32 @@
       if (soundName === 'defeat_bgm')  { this.playBgm('defeat'); return true; }
       return this.playSfx(soundName);
     }
+    comboTierForStreak(streak) {
+      var s = Number(streak) || 0;
+      if (s >= 25) return 6; if (s >= 20) return 5; if (s >= 15) return 4;
+      if (s >= 10) return 3;  if (s >= 5)  return 2; if (s >= 1)  return 1;
+      return 0;
+    }
     playComboByStreak(streak) {
-      var s = Number(streak) || 0;
-      if (s >= 10) return this.playSfx('combo.mp3');
-      if (s >= 5) return this.playSfx('sound 4.mp3');
-      if (s >= 3) return this.playSfx('sound 5.mp3');
-      return false;
+      var tier = this.comboTierForStreak(streak);
+      if (!tier) return false;
+      var ok = this.playSfx('sound ' + tier + '.mp3', this.sfxVolume * Math.min(1.0 + tier * 0.1, 1.6));
+      if (!ok) return this.playSfx('combo.mp3');
+      return true;
     }
-    comboSoundForStreak(streak) {
-      var s = Number(streak) || 0;
-      if (s >= 10) return 'combo.mp3';
-      if (s >= 5) return 'sound 4.mp3';
-      if (s >= 3) return 'sound 5.mp3';
-      return null;
+    comboSoundForStreak(streak) { var t = this.comboTierForStreak(streak); return t ? 'sound ' + t + '.mp3' : null; }
+    setBgm(bgmType) {
+      this.currentBgm = bgmType;
+      if (!this.mixerWorks || !this.soundEnabled) return false;
+      var target = BGM_FILES[bgmType] || BGM_FILES.default;   // audio.py:180 uses the unresolved map value
+      var vol = this.getBgmVolume(bgmType);
+      if (this._bgmInfo && this._bgmInfo.file === target && this._bgm && !this._bgm.paused) {
+        try { this._bgm.volume = clamp01(vol); this._bgmInfo.volume = vol; } catch (_) {}
+        return true;
+      }
+      return this.playBgm(bgmType);
     }
+    set_bgm(bgmType) { return this.setBgm(bgmType); }
     playBgm(bgmName) {
       var key = bgmName || 'default';
       if (!Object.prototype.hasOwnProperty.call(BGM_FILES, key)) key = 'default';

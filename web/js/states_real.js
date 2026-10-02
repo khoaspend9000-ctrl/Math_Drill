@@ -2038,6 +2038,8 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
       this.title = 'Bài 1';
       this.grade = 1;
       this.lessonId = 1;         // P0: numeric lesson id for QuestionGenerator
+      // main.py:1433-1434 sound_manager.set_bgm('lesson')
+      try { var AL = global.Game && global.Game.audio; if (AL) AL.setBgm('lesson'); } catch (e) {}
       this.cc = 0;               // câu hiện tại (0-based)
       this.sc = 0;               // điểm bài tập
       this.correctCount = 0;
@@ -2631,6 +2633,8 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
       this.timer = 0;
       this.showUi = false;
       this.title = 'HOÀN THÀNH BÀI HỌC!';
+      // main.py:1093-1094 sound_manager.set_bgm('victory') + play_sfx('victory')
+      try { var AV = global.Game && global.Game.audio; if (AV) { AV.setBgm('victory'); AV.playSfx('victory'); } } catch (e) {}
       this.score = 0;
       this.lessonTitle = '';
       this.stats = {};
@@ -2799,6 +2803,8 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
       this.timer = 0;
       this.showUi = false;
       this.title = 'CỐ LÊN NÀO! LÀM LẠI NHÉ 💪';
+      // main.py:1021-1022 sound_manager.set_bgm('defeat')
+      try { var AD = global.Game && global.Game.audio; if (AD) AD.setBgm('defeat'); } catch (e) {}
       this.correct = 0;
       this.total = 1;
       this.lessonTitle = '';

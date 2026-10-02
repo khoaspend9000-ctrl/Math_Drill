@@ -109,8 +109,10 @@
     // game_init.py:396-428 update_combo — logic multiplier thuần:
     //   streak>=10 → 4.0 | >=5 → 3.0 | >=3 → 2.0 | else → 1.5
     // (comboBonusThreshold từ skill system — M9; mặc định 0)
-    updateCombo(isCorrect, comboBonusThreshold) {
+    updateCombo(isCorrect, comboBonusThreshold, silent) {
+      // game_init.py:396 def update_combo(is_correct, silent=False)
       const bonus = comboBonusThreshold || 0;
+      if (silent === undefined) silent = false;
       if (isCorrect) {
         this.incrementCombo();
         const t3 = Math.max(0, 3 - bonus);
@@ -120,6 +122,9 @@
         else if (this.comboStreak >= t5) this.comboMultiplier = 3.0;
         else if (this.comboStreak >= t3) this.comboMultiplier = 2.0;
         else this.comboMultiplier = 1.5;
+        // game_init.py:422-426 sound_mgr.play_combo_sound(player.combo_streak),
+        // skipped when silent (TimeAttack passes silent=True).
+        if (!silent) { try { var A = global.Game && global.Game.audio; if (A && A.playComboByStreak) A.playComboByStreak(this.comboStreak); } catch (e) {} }
       } else {
         this.resetCombo();
       }

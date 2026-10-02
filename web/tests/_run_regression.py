@@ -34,6 +34,7 @@ test_suites = [
     'm32_3_parity_rediff.test.js',
     'm32_4_bag_achievement.test.js',
     'm32_5_exact_parity.test.js',
+    'm33_audio_parity.test.js',
 ]
 
 def first(pattern, text, flags=0):

@@ -64,6 +64,21 @@
       game.assets = new Assets();
       game.audio = new Audio('audio/');
       game.audio.attachUnlock(canvas);
+      // main.py:3648-3650: first MOUSEBUTTONDOWN/KEYDOWN sets web_audio_unlocked and
+      // calls sound_manager.set_bgm('menu') exactly once (audio.py:150-161 web-build deferral).
+      if (game.audio && typeof game.audio.attachUnlock === 'function') {
+        var _audioUnlockedOnce = false;
+        var _unlockThenBgm = function () {
+          if (_audioUnlockedOnce) return; _audioUnlockedOnce = true;
+          try { var a = game.audio; if (a.unlock) a.unlock(); if (a.setBgm) a.setBgm('menu'); } catch (e) {}
+        };
+        // main.py:3648-3650: first MOUSEBUTTONDOWN/KEYDOWN unlocks audio and starts menu BGM.
+        // Guards: headless test realms may expose a bare `window` without addEventListener.
+        if (canvas && typeof canvas.addEventListener === 'function')
+          canvas.addEventListener('pointerdown', _unlockThenBgm, { once: true });
+        if (typeof window !== 'undefined' && typeof window.addEventListener === 'function')
+          window.addEventListener('keydown', _unlockThenBgm, { once: true });
+      }
       game.states = new States();
 
       // M10-A: M6 question stack + M7 data loader are now browser-loaded —

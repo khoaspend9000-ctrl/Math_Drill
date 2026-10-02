@@ -36,6 +36,8 @@ check('T04 missing asset null no crash', function () {
   const m = mk(); m.initAudio();
   assert.strictEqual(m.loadSound('missing_xyz_nope.mp3'), null);
 });
+// M33 CORRECTED: pre-M33 asserted menu_bgm.mp3/gameplay, which contradicted
+// Desktop audio.py:114-120 -- every BGM state maps to ONE file nhac_nen.mp3.
 check('T05 BGM state no autoplay before gesture', function () {
   const m = mk(); m.initAudio();
   assert.strictEqual(m.playBgm('menu'), false);
@@ -45,10 +47,13 @@ check('T05 BGM state no autoplay before gesture', function () {
   assert.strictEqual(m.playBgm('menu'), true);
   assert.strictEqual(m.currentBgm, 'menu');
   assert.strictEqual(m.bgmState, 'playing');
-  assert.strictEqual(m._bgmInfo.file, 'menu_bgm.mp3');
+  // audio.py:114-120 -- nhac_nen.mp3 for menu/lesson/quiz/victory/defeat
+  assert.strictEqual(m._bgmInfo.file, 'nhac_nen.mp3');
+  // audio.py:95 set_volume(0.3) baseline is 0.3; _get_bgm_volume menu=0.5 -> 0.15
   assert.strictEqual(m._bgmInfo.volume, 0.15);
-  assert.strictEqual(m.playBgm('gameplay'), true);
-  assert.strictEqual(m._bgmInfo.volume, 0.3);
+  assert.strictEqual(m.playBgm('lesson'), true);
+  assert.strictEqual(m._bgmInfo.file, 'nhac_nen.mp3');
+  assert.strictEqual(m._bgmInfo.volume, 0.18);
   m.stopBgm();
   assert.strictEqual(m.bgmState, 'stopped');
 });
@@ -83,18 +88,25 @@ check('T08 mute unmute toggle', function () {
   assert.strictEqual(m.muted, false);
 });
 
+// M33 CORRECTED: pre-M33 asserted a 3-tier map (10->combo, 5->sound4, 3->sound5)
+// which contradicted Desktop audio.py:267-283 six tiers:
+// 1-4 sound 1 | 5-9 sound 2 | 10-14 sound 3 | 15-19 sound 4 | 20-24 sound 5 | 25+ sound 6
 check('T10 combo tier mapping', function () {
   const m = mk();
-  assert.strictEqual(m.comboSoundForStreak(10), 'combo.mp3');
-  assert.strictEqual(m.comboSoundForStreak(5), 'sound 4.mp3');
-  assert.strictEqual(m.comboSoundForStreak(3), 'sound 5.mp3');
-  assert.strictEqual(m.comboSoundForStreak(2), null);
   assert.strictEqual(m.comboSoundForStreak(0), null);
+  assert.strictEqual(m.comboSoundForStreak(1), 'sound 1.mp3');
+  assert.strictEqual(m.comboSoundForStreak(4), 'sound 1.mp3');
+  assert.strictEqual(m.comboSoundForStreak(5), 'sound 2.mp3');
+  assert.strictEqual(m.comboSoundForStreak(9), 'sound 2.mp3');
+  assert.strictEqual(m.comboSoundForStreak(10), 'sound 3.mp3');
+  assert.strictEqual(m.comboSoundForStreak(14), 'sound 3.mp3');
+  assert.strictEqual(m.comboSoundForStreak(15), 'sound 4.mp3');
+  assert.strictEqual(m.comboSoundForStreak(20), 'sound 5.mp3');
+  assert.strictEqual(m.comboSoundForStreak(25), 'sound 6.mp3');
   m.initAudio(); m.unlocked = true;
   assert.strictEqual(m.playComboByStreak(10), true);
-  assert.strictEqual(m.playComboByStreak(5), true);
-  assert.strictEqual(m.playComboByStreak(3), true);
-  assert.strictEqual(m.playComboByStreak(2), false);
+  assert.strictEqual(m.playComboByStreak(25), true);
+  assert.strictEqual(m.playComboByStreak(0), false);
 });
 check('T09 unlock resolves no rejection', function () {
   const m = mk(); m.initAudio();
