@@ -71,7 +71,23 @@ chk('BAG :2816-2818 empty state path', (function(){
 // ---------- ACHIEVEMENTVIEW (main.py:1927-2001) ----------
 chk('ACH back button (810,600,300,60) main.py:1930', (function(){const a=new st.AchievementState();return a.backBtn.x===810&&a.backBtn.y===600&&a.backBtn.w===300&&a.backBtn.h===60;})());
 chk('ACH :1941 clear (165,214,167)', /R\.clear\('#a5d6a7'\)/.test(SRC));
-chk('ACH :1974 cards border_radius 12', /fillRoundRect\(r\.x, r\.y, r\.w, r\.h, 12, css\(color\)/.test(SRC));
+/* Desktop draws the card on an SRCALPHA surface: main.py:1974 fills
+   border_radius=12 at alpha 200, and main.py:1977 (unlocked, (200,170,80),
+   width 2) / :1979 (locked, (100,100,100), width 2) both stroke radius 12.
+   M32.5 re-ported the card, so the opaque fillRoundRect call is gone and the
+   assertion now covers the alpha fill AND the alpha border stroke. */
+chk('ACH :1974 card fill radius 12 at alpha 200/255', /fillRoundRectAlpha\(x, y, colW, 80, 12, cardFill, 200 \/ 255\)/.test(SRC));
+chk('ACH :1977/:1979 card border radius 12 width 2', /strokeRoundRectAlpha\(x, y, colW, 80, 12, bStroke, \(isUn \? 200 : 150\) \/ 255, 2\)/.test(SRC));
+chk('ACH :1972 card colours (60,60,80)/(40,40,50)', /rgb\(60,60,80\)'? : 'rgb\(40,40,50\)/.test(SRC));
+chk('ACH :1977/:1979 border colours (200,170,80)/(100,100,100)', /rgb\(200,170,80\)' : 'rgb\(100,100,100\)/.test(SRC));
+chk('ACH :1982 locked card shows the padlock glyph', /'🔒'/.test(SRC));
+chk('ACH :1997 unlocked XP carries the tick', /' XP' \+ \(isUn \? ' ✓' : ''\)/.test(SRC));
+chk('ACH :1961/:1966/:1967 grid colW 540, x 100+col*570, row*90', /const colW = 540/.test(SRC) && /100 \+ col \* \(colW \+ 30\)/.test(SRC) && /yStart \+ row \* 90/.test(SRC));
+chk('ACH :1968 culls y<150 or y>H-100', /if \(y < 150 \|\| y > H2 - 100\) continue/.test(SRC));
+chk('ACH :1936 wheel scroll min(0, y+delta*30)', /this\.scrollY = Math\.min\(0, this\.scrollY \+ \(wheel\.deltaY \|\| 0\) \* 30\)/.test(SRC));
+chk('ACH :1935 back uses Desktop PAGE transition', /change\('menu', null, 'PAGE'\)/.test(SRC));
+chk('ACH :1958 summary line at y=130 in WHITE', /'Đã đạt: ' \+ got \+ '\/' \+ total, W2 \/ 2, 130/.test(SRC) && /fill: '#ffffff'/.test(SRC));
+chk('ACH no longer caps the rendered rows', !/i < 12\)/.test(SRC));
 chk('ACH :1994 XP text rendered', /XP/.test(SRC));
 chk('ACH draw does not throw with a stub ctx', (function(){ try{ const a=new st.AchievementState(); a.enter(); a.draw(R,1300,800); return true;}catch(e){ return false; } })());
 

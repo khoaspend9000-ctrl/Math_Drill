@@ -3628,19 +3628,27 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
 
   /* M10-B STATE: ACHIEVEMENT (main.py:1927-2002 AchievementViewState) */
   class AchievementState extends BaseState {
+    /* M32.5 exact re-port of Desktop main.py:1927-2001 (AchievementViewState).
+       M32.3/M32.4 fixed only the back button; the card internals, the summary
+       line and the wheel scroll still did not match Desktop. Every constant
+       below cites the Desktop line it came from. The book itself already
+       matches: _wireBookState('AchievementState') calls book.draw(R, null, null)
+       which is the exact equivalent of Desktop's
+       book.draw(s, lambda s, r: None, lambda s, r: None) (main.py:1942). */
     constructor() {
       super('achievement');
       this.backBtn = { x: 810, y: 600, w: 300, h: 60 };  // Desktop main.py:1930
       this.dataMissing = true;
       this.rows = [];
+      this.scrollY = 0;                                  // Desktop main.py:1931
     }
     enter(params) {
       this.dataMissing = true;
       this.rows = [];
+      this.scrollY = 0;                                  // Desktop main.py:1931
       const d = m9AccountData();
       if (!d) { this.dataMissing = true; return; }
       m9EnsureDst(d);
-      const self = this;
       const unlocked = d.achievements_unlocked || [];
       this.unlocked = unlocked;
       if (params && params.definitions) {
@@ -3654,58 +3662,109 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
         if (this.definitions) { this.dataMissing = false; this._buildRows(); }
       }
     }
+    /* Desktop lays the cards out inside draw() (main.py:1960-1969), not in a
+       separate build pass, because the row y depends on self.scroll_y. Keep the
+       item list here and compute the geometry per frame so the scroll is real. */
     _buildRows() {
       this.rows = [];
-      const keys = Object.keys(this.definitions || {});
-      const cols = 2, bw = 480, bh = 80, gap = 22, x0 = 120, y0 = 160;
-      for (let i = 0; i < keys.length && i < 24; i++) {
-        const row = Math.floor(i / cols), col = i % cols;
-        this.rows.push({ id: keys[i], def: this.definitions[keys[i]],
-          x: x0 + col * (bw + gap), y: y0 + row * (bh + gap), w: bw, h: bh });
+      const defs = this.definitions || {};
+      const keys = Object.keys(defs);
+      for (let i = 0; i < keys.length; i++) {
+        this.rows.push({ id: keys[i], def: defs[keys[i]] });
       }
     }
     exit() { this.rows = []; }
     handleInput(input, dt) {
+      /* Desktop main.py:1936-1937 MOUSEWHEEL -> scroll_y = min(0, scroll_y + e.y*30).
+         Only ever scrolls upward (negative), clamped at 0. */
+      const wheel = (input && input.consumeWheel) ? input.consumeWheel() : null;
+      if (wheel) {
+        this.scrollY = Math.min(0, this.scrollY + (wheel.deltaY || 0) * 30);
+      }
       const click = input.consumeClick ? input.consumeClick() : null;
       if (!click) return;
       if (hit(click, this.backBtn.x, this.backBtn.y, this.backBtn.w, this.backBtn.h)) {
-        global.Game.states.change('menu', null, 'fade');
+        global.Game.states.change('menu', null, 'PAGE');
       }
     }
-    update(dt) {}
+    update() {}
     draw(ctx, W2, H2) {
       const R = global.Game.renderer;
-      R.clear('#a5d6a7');
-      R.text('🏆 THÀNH TÍCH', W2 / 2, 60, {
-        font: 'bold 38px Quicksand, sans-serif', fill: '#c9a227', align: 'center', baseline: 'middle'
+      R.clear('#a5d6a7');                               // Desktop main.py:1941 s.fill((165,214,167))
+      /* Title: Desktop main.py:1944-1951 render_text_with_leading_icon(
+         "🏆 THÀNH TÍCH", font_big, color=(255,215,0), gap=8) blitted at
+         y = 90 - height//2. font_big is 48px, so the centre lands at 90-24 = 66. */
+      R.text('🏆 THÀNH TÍCH', W2 / 2, 66, {
+        font: 'bold 48px Quicksand, sans-serif', fill: 'rgb(255,215,0)',
+        align: 'center', baseline: 'middle'
       });
+      /* Summary: Desktop main.py:1958 draw_text_center(..., WHITE, WIDTH//2, 130) */
       const got = this.unlocked ? this.unlocked.length : 0;
       const total = this.definitions ? Object.keys(this.definitions).length : 0;
-      R.text('Đã đạt: ' + got + '/' + total, W2 / 2, 110, {
-        font: '22px Quicksand, sans-serif', fill: '#20242e', align: 'center', baseline: 'middle'
+      R.text('Đã đạt: ' + got + '/' + total, W2 / 2, 130, {
+        font: '24px Quicksand, sans-serif', fill: '#ffffff',
+        align: 'center', baseline: 'middle'
       });
       if (this.dataMissing) {
         R.text('Đang tải thành tích...', W2 / 2, H2 / 2, {
           font: 'bold 24px Quicksand, sans-serif', fill: '#6b4f00', align: 'center', baseline: 'middle'
         });
       }
-      for (let i = 0; i < this.rows.length && i < 12; i++) {
+      const yStart = 170 + this.scrollY;                 // Desktop main.py:1960
+      const colW = 540;                                 // Desktop main.py:1961
+      for (let i = 0; i < this.rows.length; i++) {
         const r = this.rows[i];
         const isUn = (this.unlocked || []).indexOf(r.id) >= 0;
-        const color = isUn ? GREEN_BTN : SHADOW;
-        R.fillRoundRect(r.x, r.y, r.w, r.h, 12, css(color), isUn ? 'rgb(255,215,0)' : '#ffffff', isUn ? 3 : 2);
-        R.text(r.def.icon || '🏆', r.x + 36, r.y + r.h / 2, {
-          font: '26px Quicksand, sans-serif', fill: '#ffffff', align: 'center', baseline: 'middle'
+        const col = i % 2;                              // Desktop main.py:1964
+        const row = Math.floor(i / 2);                  // Desktop main.py:1965
+        const x = 100 + col * (colW + 30);              // Desktop main.py:1966
+        const y = yStart + row * 90;                     // Desktop main.py:1967
+        if (y < 150 || y > H2 - 100) continue;           // Desktop main.py:1968-1969 cull
+        /* Card surface: Desktop main.py:1972-1974 draws an SRCALPHA rect
+           (60,60,80) unlocked / (40,40,50) locked at alpha 200, radius 12. */
+        const cardFill = isUn ? 'rgb(60,60,80)' : 'rgb(40,40,50)';
+        /* Desktop draws the card on a pygame SRCALPHA surface, so the Web needs a
+           translucent fill. Guard both alpha helpers: a state draw must never
+           throw, and some harnesses (polish_m3) stub a partial Renderer. The
+           opaque fillRoundRect fallback keeps the card visible either way. */
+        if (typeof R.fillRoundRectAlpha === 'function') {
+          R.fillRoundRectAlpha(x, y, colW, 80, 12, cardFill, 200 / 255);
+        } else {
+          R.fillRoundRect(x, y, colW, 80, 12, cardFill, 'rgba(0,0,0,0)', 0);
+        }
+        /* Border: Desktop main.py:1975-1979 — unlocked (200,170,80) alpha 200
+           width 2; locked (100,100,100) alpha 150 width 2. */
+        const bStroke = isUn ? 'rgb(200,170,80)' : 'rgb(100,100,100)';
+        if (typeof R.strokeRoundRectAlpha === 'function') {
+          R.strokeRoundRectAlpha(x, y, colW, 80, 12, bStroke, (isUn ? 200 : 150) / 255, 2);
+        } else {
+          R.fillRoundRect(x, y, colW, 80, 12, 'rgba(0,0,0,0)', bStroke, 2);
+        }
+        /* Icon: Desktop main.py:1982-1985 — the achievement icon when unlocked,
+           the padlock glyph when locked; load_icon_font(30), WHITE, at (x+15, y+25). */
+        R.text(isUn ? (r.def.icon || '🏆') : '🔒', x + 15, y + 25, {
+          font: '30px Quicksand, sans-serif', fill: '#ffffff', baseline: 'middle'
         });
-        R.text((isUn ? '✓ ' : '🔒 ') + String(r.def.name || r.id).slice(0, 22), r.x + 72, r.y + 24, {
-          font: 'bold 17px Quicksand, sans-serif', fill: '#ffffff', baseline: 'middle'
+        /* Name: Desktop main.py:1987-1989 — (200,170,80) unlocked,
+           (120,120,120) locked, at (x+60, y+10). No tick/lock prefix. */
+        R.text(String(r.def.name || r.id), x + 60, y + 10, {
+          font: 'bold 24px Quicksand, sans-serif',
+          fill: isUn ? 'rgb(200,170,80)' : 'rgb(120,120,120)', baseline: 'middle'
         });
-        R.text(String(r.def.desc || '').slice(0, 44), r.x + 72, r.y + 46, {
-          font: '13px Quicksand, sans-serif', fill: 'rgba(255,255,255,0.85)', baseline: 'middle'
+        /* Description: Desktop main.py:1991-1994 — (180,180,180) unlocked,
+           (90,90,90) locked, load_font(16), at (x+60, y+45). */
+        R.text(String(r.def.desc || ''), x + 60, y + 45, {
+          font: '16px Quicksand, sans-serif',
+          fill: isUn ? 'rgb(180,180,180)' : 'rgb(90,90,90)', baseline: 'middle'
         });
-        if (r.def.xp) R.text('+' + r.def.xp + ' XP', r.x + r.w - 16, r.y + r.h - 18, {
-          font: 'bold 14px Quicksand, sans-serif', fill: '#ffe9a0', align: 'right', baseline: 'middle'
-        });
+        /* XP: Desktop main.py:1996-2000 — "+{xp} XP ✓" (100,255,100) when
+           unlocked, "+{xp} XP" (100,100,100) when locked, at (x+col_w-100, y+45). */
+        if (r.def.xp) {
+          R.text('+' + r.def.xp + ' XP' + (isUn ? ' ✓' : ''), x + colW - 100, y + 45, {
+            font: '16px Quicksand, sans-serif',
+            fill: isUn ? 'rgb(100,255,100)' : 'rgb(100,100,100)', baseline: 'middle'
+          });
+        }
       }
       drawBtn(R, this.backBtn.x, this.backBtn.y, this.backBtn.w, this.backBtn.h, '⬅️ QUAY LẠI', RED_BTN, { fontSize: 16 });
     }
@@ -4535,7 +4594,19 @@ const { SkillTreeSystem } = require('../js/skill_tree.js');
       const rows = [
         ['⭐ Level', String(d.level !== undefined ? d.level : (P.level !== undefined ? P.level : 1))],
         ['✨ XP', String(d.xp !== undefined ? d.xp : (P.exp !== undefined ? P.exp : 0))],
-        ['💰 Gold', String(d.gold !== undefined ? d.gold : (P.gold !== undefined ? P.gold : 0))],
+        /* Desktop main.py:2173: gold_value = "Vô hạn (Admin)" if
+           account_system.current_user == ADMIN_USER else str(user_data.get("gold", 0)).
+           game_init.py:311 defines ADMIN_USER = "admin", and auth.js sets
+           this.currentUser on login, so the Web equivalent of
+           account_system.current_user is auth.currentUser. */
+        ['💰 Gold', (function () {
+          try {
+            var au = global.Game && global.Game.auth ? global.Game.auth : null;
+            var cu = au ? au.currentUser : null;
+            if (cu === 'admin') return 'Vô hạn (Admin)';   // main.py:2173
+          } catch (e) { /* fall through to the numeric value */ }
+          return String(d.gold !== undefined ? d.gold : (P.gold !== undefined ? P.gold : 0));
+        })()],
         ['🎯 Độ chính xác', stats.accuracy + '%'],
         ['🔥 Best Combo', String(stats.bestCombo)],
         ['⏱ Thời gian chơi', stats.playTime],
